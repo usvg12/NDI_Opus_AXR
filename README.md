@@ -1,1 +1,295 @@
-# NDI_Opus_AXR
+# NDI XR Viewer — AndroidXR NDI Streaming App
+
+Real-time NDI video streaming viewer for Samsung Galaxy XR headset running in passthrough (mixed reality) mode. Receives NDI streams over the local network and displays them as spatial windows in 3D space with optional stereoscopic Side-by-Side (SBS) 3D rendering.
+
+## Features
+
+- **NDI Source Discovery**: Automatic scanning of local network for NDI sources
+- **Low-Latency Streaming**: Optimized for <50ms latency with background thread capture
+- **Side-by-Side 3D**: Toggle between flat display and stereoscopic SBS mode
+  - **SBS OFF**: Full 3840x1080 frame displayed as-is on a single plane
+  - **SBS ON**: Left half (1920x1080) rendered to left eye, right half to right eye
+- **Spatial Window**: Grabbable, movable, resizable video window in 3D space
+- **Passthrough Mode**: Mixed reality — see your real environment behind the video
+- **Floating UI Panel**: Source selector, connect button, SBS toggle, status/FPS display
+- **Adaptive Performance**: Dynamic resolution scaling to maintain 72+ FPS
+- **Network Resilience**: Disconnect detection with reconnection support
+
+## Project Structure
+
+```
+NDI_Opus_AXR/
+├── Assets/
+│   ├── Scripts/
+│   │   ├── NDIInterop.cs              # P/Invoke bindings for NDI native library
+│   │   ├── NDISourceDiscovery.cs       # Background thread NDI source scanner
+│   │   ├── NDIReceiver.cs             # Connects to NDI source, captures video frames
+│   │   ├── NDIVideoDisplay.cs         # Renders frames onto spatial quad with SBS shader
+│   │   ├── SpatialWindowController.cs # Grab, move, resize video window in 3D space
+│   │   ├── UIController.cs            # Wires UI elements to NDI/display components
+│   │   ├── UIPanelBuilder.cs          # Programmatically builds the floating UI panel
+│   │   ├── AppController.cs           # Main app lifecycle and initialization
+│   │   ├── XRRigSetup.cs             # XR Origin, hand tracking, ray interactors
+│   │   ├── SceneBootstrapper.cs       # Builds entire scene hierarchy at runtime
+│   │   ├── PassthroughConfigurator.cs # Manages passthrough/mixed reality mode
+│   │   ├── NetworkMonitor.cs          # Network connectivity monitoring
+│   │   └── PerformanceMonitor.cs      # FPS tracking and dynamic quality adjustment
+│   ├── Shaders/
+│   │   └── NDI_SBS_Stereo.shader      # URP stereo shader with SBS eye splitting
+│   ├── Editor/
+│   │   └── BuildHelper.cs             # Menu-driven APK build automation
+│   ├── Plugins/
+│   │   ├── NDI/
+│   │   │   └── README_NDI_SDK.md      # NDI SDK download and integration instructions
+│   │   └── Android/
+│   │       ├── AndroidManifest.xml     # XR permissions, passthrough, OpenXR config
+│   │       ├── mainTemplate.gradle     # Gradle build template for ARM64
+│   │       └── gradleTemplate.properties
+│   ├── Scenes/                         # Place your Unity scene here
+│   ├── Prefabs/
+│   ├── Resources/
+│   └── StreamingAssets/
+├── Packages/
+│   └── manifest.json                   # Unity package dependencies
+├── ProjectSettings/
+│   ├── ProjectSettings.asset           # Player settings (Android, Vulkan, API 34+)
+│   ├── XRPluginManagement.asset        # OpenXR loader configuration
+│   ├── OpenXRSettings.asset            # OpenXR features and interaction profiles
+│   ├── URPSettings.asset               # URP optimized for XR streaming
+│   └── QualitySettings.asset           # Quality levels tuned for VR performance
+├── .gitignore
+└── README.md
+```
+
+## Requirements
+
+### Development Environment
+- **Unity 6** (latest LTS recommended)
+- **Android Build Support** module installed in Unity Hub
+- **Android SDK** API level 34+ (installed via Unity Hub or Android Studio)
+- **Android NDK** r26+ (installed via Unity Hub)
+- **JDK 11** (bundled with Unity)
+
+### Unity Packages (auto-installed via manifest.json)
+- OpenXR Plugin (`com.unity.xr.openxr` 1.13.1+)
+- XR Plugin Management (`com.unity.xr.management` 4.5.0+)
+- XR Interaction Toolkit (`com.unity.xr.interaction.toolkit` 3.0.7+)
+- XR Hands (`com.unity.xr.hands` 1.6.0+)
+- Input System (`com.unity.inputsystem` 1.11.2+)
+- Universal Render Pipeline (`com.unity.render-pipelines.universal` 17.0.3+)
+- TextMeshPro (`com.unity.textmeshpro`)
+
+### Additional Required Packages (manual install)
+- **Unity OpenXR: Android XR** — Install via Package Manager (Android XR scoped registry)
+- **Android XR Extensions for Unity** — From [GitHub](https://github.com/android/android-xr-unity-package)
+
+### NDI SDK
+- **NDI Advanced SDK for Android** — Download from [ndi.video](https://ndi.video/tools/ndi-sdk/)
+- Free for non-commercial use; review license for commercial deployment
+
+### Target Device
+- **Samsung Galaxy XR** headset (or any AndroidXR-compatible device)
+- Android API 34+
+- ARM64 architecture
+
+## Setup Instructions
+
+### Step 1: Clone and Open Project
+
+```bash
+git clone <repository-url>
+```
+
+Open the project folder in **Unity 6** via Unity Hub.
+
+### Step 2: Install NDI SDK
+
+1. Download the **NDI Advanced SDK** from https://ndi.video/tools/ndi-sdk/
+2. Accept the license agreement
+3. Extract and copy the Android ARM64 library:
+   ```
+   NDI_SDK/lib/arm64-v8a/libndi.so → Assets/Plugins/NDI/Android/arm64-v8a/libndi.so
+   ```
+4. Create the directory structure:
+   ```bash
+   mkdir -p Assets/Plugins/NDI/Android/arm64-v8a/
+   ```
+5. In Unity, select the `.so` file and configure the import settings:
+   - Platform: Android
+   - CPU: ARM64
+   - Load on startup: Yes
+
+### Step 3: Install Android XR Packages
+
+1. Open **Window > Package Manager**
+2. Click **+** > **Add package by name**
+3. Add: `com.unity.xr.openxr.androidxr` (Unity OpenXR: Android XR)
+4. Optionally add the Android XR Extensions package from GitHub:
+   ```
+   https://github.com/android/android-xr-unity-package.git
+   ```
+
+### Step 4: Configure XR Plugin Management
+
+1. Go to **Edit > Project Settings > XR Plug-in Management**
+2. Select the **Android** tab
+3. Check **OpenXR**
+4. Under OpenXR settings:
+   - Set **Render Mode** to **Single Pass Instanced**
+   - Enable **Submit Depth Buffer**
+   - Add **Hand Interaction Profile** under Interaction Profiles
+   - Enable features: Hand Tracking, Eye Gaze, Passthrough, Composition Layers, Foveated Rendering
+
+### Step 5: Configure Build Settings
+
+1. Go to **File > Build Settings**
+2. Select **Android** platform and click **Switch Platform**
+3. Click **Player Settings**:
+   - **Company Name**: Your company
+   - **Product Name**: NDI XR Viewer
+   - **Package Name**: `com.ndiviewer.androidxr`
+   - **Minimum API Level**: 34
+   - **Target API Level**: 35
+   - **Target Architectures**: ARM64 only
+   - **Graphics APIs**: Vulkan only (remove OpenGL ES)
+   - **Color Space**: Linear
+   - **Stereo Rendering Mode**: Single Pass Instanced
+
+   Or use the menu: **NDI XR Viewer > Configure Build Settings**
+
+### Step 6: Create the Scene
+
+1. Create a new scene: **File > New Scene** (choose **Empty**)
+2. Save it to `Assets/Scenes/NDIViewerMain.unity`
+3. Add an empty GameObject and attach the `SceneBootstrapper` component
+4. The bootstrapper will create the entire scene hierarchy at runtime:
+   - XR Origin with camera and hand interactors
+   - NDI video display window
+   - Floating UI control panel
+   - All manager components
+
+5. Add the scene to Build Settings: **File > Build Settings > Add Open Scenes**
+
+### Step 7: Build APK
+
+**Option A — Unity Menu:**
+- **NDI XR Viewer > Build APK (Debug)** — Development build with debugging
+- **NDI XR Viewer > Build APK (Release)** — Optimized release build
+
+**Option B — Manual:**
+1. **File > Build Settings**
+2. Ensure your scene is in the scene list
+3. Click **Build** or **Build and Run**
+4. Choose output path (e.g., `Builds/NDI_XR_Viewer.apk`)
+
+**Option C — Command Line:**
+```bash
+Unity -batchmode -projectPath . -executeMethod NDIViewer.Editor.BuildHelper.BuildReleaseAPK -quit -logFile build.log
+```
+
+### Step 8: Deploy to Samsung Galaxy XR
+
+```bash
+# Enable developer mode on the headset
+# Connect via USB or Wi-Fi ADB
+
+# Install APK
+adb install -r Builds/NDI_XR_Viewer_release.apk
+
+# Launch
+adb shell am start -n com.ndiviewer.androidxr/com.unity3d.player.UnityPlayerActivity
+
+# View logs
+adb logcat -s Unity NDI
+```
+
+## Usage
+
+1. **Launch** the app on Samsung Galaxy XR — it starts in passthrough mode
+2. **NDI Sources** are automatically discovered on the local network
+3. Select a source from the **dropdown** on the floating control panel
+4. Press **Connect** to start receiving the video stream
+5. The video appears on a **2m wide window** positioned 2m in front of you
+6. **Grab and move** the window by pinching and dragging with your hands
+7. **Resize** using two-hand pinch-to-scale gesture
+8. Toggle **SBS 3D Mode** to enable stereoscopic viewing:
+   - OFF: Full 3840x1080 frame on a flat plane
+   - ON: Left/right eye split for 3D depth perception
+9. Press **Reset Window** to return the video window to its default position
+
+## Architecture
+
+### Data Flow
+```
+NDI Source (Network)
+       │
+       ▼
+NDISourceDiscovery ──── background thread scanning
+       │
+       ▼ (user selects source)
+NDIReceiver ──────────── background thread frame capture
+       │                  ├── P/Invoke → libndi.so (native)
+       │                  ├── RGBA buffer copy (low latency path)
+       │                  └── Performance counters
+       ▼
+NDIVideoDisplay ──────── main thread texture upload
+       │                  ├── Texture2D.LoadRawTextureData
+       │                  └── SBS_Stereo shader (eye splitting)
+       ▼
+SpatialWindowController ─ 3D positioning, grab, resize
+       │
+       ▼
+OpenXR / AndroidXR ────── stereo rendering to headset
+```
+
+### Key Design Decisions
+
+- **Background threads** for NDI discovery and frame capture minimize main thread load
+- **Direct RGBA buffer copy** avoids color conversion overhead
+- **Single shader** handles both flat and SBS modes via a float toggle (no material swap)
+- **Single Pass Instanced** stereo rendering for GPU efficiency
+- **SceneBootstrapper** creates everything at runtime, avoiding serialized scene dependencies
+- **Reflection-based wiring** connects SerializeField references programmatically
+- **Dynamic resolution scaling** drops resolution under sustained low FPS, restores when stable
+
+### Performance Targets
+
+| Metric | Target |
+|--------|--------|
+| Headset FPS | 72+ Hz |
+| NDI Stream Latency | <50ms |
+| Input Resolution | 3840x1080 |
+| Frame Rate Support | 30-90 fps |
+| Resolution Scaling Range | 70%-100% |
+
+## Shader: NDI_SBS_Stereo
+
+The custom URP shader (`Assets/Shaders/NDI_SBS_Stereo.shader`) handles:
+
+- **SBS OFF**: UV coordinates pass through unmodified — displays full frame
+- **SBS ON**: Uses `unity_StereoEyeIndex` to determine current eye:
+  - Left eye (index 0): samples UV x range [0.0, 0.5]
+  - Right eye (index 1): samples UV x range [0.5, 1.0]
+- Supports both **Single Pass Instanced** and **Multi-pass** stereo rendering
+- Includes **brightness** and **contrast** adjustments
+- Falls back to built-in render pipeline if URP is unavailable
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| No NDI sources found | Ensure headset is on same network/VLAN as NDI source. Check multicast permissions. |
+| Black video window | Verify `libndi.so` is in `Plugins/NDI/Android/arm64-v8a/`. Check ADB logs for NDI errors. |
+| Low FPS / stuttering | Reduce NDI source resolution. Check PerformanceMonitor dynamic scaling. Disable post-processing. |
+| SBS mode looks wrong | Verify input is Full SBS (3840x1080, left-right layout). Half SBS is not supported. |
+| Passthrough not visible | Ensure `AndroidManifest.xml` has `ALPHA_BLEND` blend mode. Camera background must be `Color.clear`. |
+| Build fails | Confirm Vulkan is the only Graphics API. ARM64 only. Min SDK 34. See `BuildHelper.cs` settings. |
+| App crashes on launch | Check ADB logcat for missing native libraries or permission denials. |
+
+## License
+
+This project code is provided as-is for development purposes.
+
+**NDI SDK**: NDI® is a registered trademark of Vizrt NDI AB. The NDI SDK is used under the NDI SDK License Agreement. Free for non-commercial use. For commercial deployment, review the [NDI SDK license terms](https://ndi.video/sdk/license/).
+
+**AndroidXR**: Android is a trademark of Google LLC. Samsung Galaxy XR is a trademark of Samsung Electronics.
