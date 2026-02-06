@@ -1,0 +1,30 @@
+{
+  "dependencies": {
+    "com.unity.xr.openxr": "1.13.1",
+    "com.unity.xr.management": "4.5.0",
+    "com.unity.xr.interaction.toolkit": "3.0.7",
+    "com.unity.xr.hands": "1.6.0",
+    "com.unity.inputsystem": "1.11.2",
+    "com.unity.render-pipelines.universal": "17.0.3",
+    "com.unity.textmeshpro": "3.2.0-pre.12",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.video": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "com.unity.modules.unitywebrequesttexture": "1.0.0"
+  },
+  "scopedRegistries": [
+    {
+      "name": "Android XR",
+      "url": "https://packages.unity.com",
+      "scopes": [
+        "com.unity.xr.openxr.androidxr",
+        "com.google.xr.extensions"
+      ]
+    }
+  ]
+}

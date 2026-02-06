@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AndroidManifest.xml for NDI XR Viewer
+  Configured for Samsung Galaxy XR (AndroidXR platform)
+  Passthrough / Mixed Reality mode enabled
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.ndiviewer.androidxr"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <!-- Require AndroidXR system feature -->
+    <uses-feature android:name="android.hardware.xr.immersive" android:required="true" />
+
+    <!-- Passthrough camera access for mixed reality -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- OpenXR support -->
+    <uses-feature android:name="org.khronos.openxr" android:required="true" android:version="1" />
+
+    <!-- Network permissions for NDI streaming -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Hand tracking for spatial interaction -->
+    <uses-permission android:name="android.permission.HAND_TRACKING" />
+
+    <!-- Eye tracking for foveated rendering -->
+    <uses-permission android:name="android.permission.EYE_TRACKING_FINE" />
+
+    <!-- Passthrough camera permission -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <application
+        android:label="NDI XR Viewer"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+        android:hasCode="true"
+        android:allowBackup="false"
+        android:hardwareAccelerated="true"
+        android:extractNativeLibs="true"
+        android:isGame="false"
+        android:resizableActivity="false">
+
+        <!-- XR Application metadata -->
+        <meta-data
+            android:name="com.android.xr.application.mode"
+            android:value="XR" />
+
+        <!-- Request passthrough (mixed reality) environment blend mode -->
+        <meta-data
+            android:name="com.android.xr.application.environment.blend.mode"
+            android:value="ALPHA_BLEND" />
+
+        <!-- OpenXR runtime loader -->
+        <meta-data
+            android:name="org.khronos.openxr.api_layer.disable"
+            android:value="" />
+
+        <activity
+            android:name="com.unity3d.player.UnityPlayerActivity"
+            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:enableOnBackInvokedCallback="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- AndroidXR launcher category -->
+                <category android:name="com.android.xr.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Declare as an XR immersive activity -->
+            <meta-data
+                android:name="com.android.xr.activity.xr.mode"
+                android:value="XR_IMMERSIVE" />
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,274 @@
+// UI Controller - Floating spatial UI panel for NDI stream controls
+// Provides source selection, connect button, SBS toggle, and status display.
+// Designed for VR readability with large fonts and clear contrast.
+
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+namespace NDIViewer
+{
+    /// <summary>
+    /// Manages the floating control panel UI in 3D space.
+    /// Handles NDI source list, connection controls, SBS toggle, and status display.
+    /// </summary>
+    public class UIController : MonoBehaviour
+    {
+        [Header("References")]
+        [SerializeField] private NDISourceDiscovery sourceDiscovery;
+        [SerializeField] private NDIReceiver receiver;
+        [SerializeField] private NDIVideoDisplay videoDisplay;
+        [SerializeField] private SpatialWindowController windowController;
+
+        [Header("UI Elements")]
+        [SerializeField] private TMP_Dropdown sourceDropdown;
+        [SerializeField] private Button connectButton;
+        [SerializeField] private TMP_Text connectButtonText;
+        [SerializeField] private Toggle sbsToggle;
+        [SerializeField] private TMP_Text sbsToggleLabel;
+        [SerializeField] private TMP_Text statusText;
+        [SerializeField] private TMP_Text resolutionText;
+        [SerializeField] private TMP_Text fpsText;
+        [SerializeField] private Button resetPositionButton;
+        [SerializeField] private Image connectionIndicator;
+
+        [Header("Status Colors")]
+        [SerializeField] private Color connectedColor = new Color(0.2f, 0.8f, 0.2f);
+        [SerializeField] private Color connectingColor = new Color(0.9f, 0.7f, 0.1f);
+        [SerializeField] private Color disconnectedColor = new Color(0.5f, 0.5f, 0.5f);
+        [SerializeField] private Color errorColor = new Color(0.9f, 0.2f, 0.2f);
+
+        private List<NDISourceDiscovery.DiscoveredSource> _currentSources =
+            new List<NDISourceDiscovery.DiscoveredSource>();
+        private bool _isConnected;
+
+        private void Awake()
+        {
+            // Wire up button/toggle events
+            if (connectButton != null)
+                connectButton.onClick.AddListener(OnConnectButtonClicked);
+
+            if (sbsToggle != null)
+                sbsToggle.onValueChanged.AddListener(OnSBSToggleChanged);
+
+            if (resetPositionButton != null)
+                resetPositionButton.onClick.AddListener(OnResetPositionClicked);
+        }
+
+        private void OnEnable()
+        {
+            // Subscribe to events
+            if (sourceDiscovery != null)
+                sourceDiscovery.OnSourcesUpdated += OnSourcesUpdated;
+
+            if (receiver != null)
+            {
+                receiver.OnConnectionStateChanged += OnConnectionStateChanged;
+                receiver.OnVideoFrameReceived += OnVideoFrameReceived;
+            }
+
+            UpdateUI();
+        }
+
+        private void OnDisable()
+        {
+            if (sourceDiscovery != null)
+                sourceDiscovery.OnSourcesUpdated -= OnSourcesUpdated;
+
+            if (receiver != null)
+            {
+                receiver.OnConnectionStateChanged -= OnConnectionStateChanged;
+                receiver.OnVideoFrameReceived -= OnVideoFrameReceived;
+            }
+        }
+
+        private void Update()
+        {
+            // Update FPS display
+            if (fpsText != null && receiver != null && _isConnected)
+            {
+                fpsText.text = $"FPS: {receiver.CurrentFps:F1}";
+            }
+        }
+
+        // ─── Event Handlers ───────────────────────────────────────────
+
+        private void OnSourcesUpdated(List<NDISourceDiscovery.DiscoveredSource> sources)
+        {
+            _currentSources = sources;
+            UpdateSourceDropdown();
+        }
+
+        private void OnConnectionStateChanged(NDIReceiver.ConnectionState state)
+        {
+            _isConnected = state == NDIReceiver.ConnectionState.Connected;
+            UpdateStatusDisplay(state);
+            UpdateConnectButton(state);
+        }
+
+        private void OnVideoFrameReceived(Texture2D texture, NDIReceiver.FrameInfo info)
+        {
+            if (resolutionText != null)
+            {
+                resolutionText.text = $"{info.Width} x {info.Height}";
+            }
+
+            // Forward to video display
+            if (videoDisplay != null)
+            {
+                videoDisplay.UpdateVideoFrame(texture, info);
+            }
+        }
+
+        private void OnConnectButtonClicked()
+        {
+            if (_isConnected)
+            {
+                // Disconnect
+                receiver?.Disconnect();
+                videoDisplay?.ShowPlaceholder();
+            }
+            else
+            {
+                // Connect to selected source
+                if (sourceDropdown == null || sourceDropdown.value < 0 ||
+                    sourceDropdown.value >= _currentSources.Count)
+                {
+                    SetStatusError("No NDI source selected");
+                    return;
+                }
+
+                var selectedSource = _currentSources[sourceDropdown.value];
+                receiver?.Connect(selectedSource);
+            }
+        }
+
+        private void OnSBSToggleChanged(bool isOn)
+        {
+            if (videoDisplay != null)
+            {
+                videoDisplay.SetSBSMode(isOn);
+            }
+
+            if (sbsToggleLabel != null)
+            {
+                sbsToggleLabel.text = isOn ? "SBS 3D: ON" : "SBS 3D: OFF";
+            }
+        }
+
+        private void OnResetPositionClicked()
+        {
+            windowController?.ResetToDefaultPosition();
+        }
+
+        // ─── UI Update Methods ────────────────────────────────────────
+
+        private void UpdateSourceDropdown()
+        {
+            if (sourceDropdown == null) return;
+
+            int previousSelection = sourceDropdown.value;
+            string previousName = sourceDropdown.options.Count > previousSelection
+                ? sourceDropdown.options[previousSelection].text
+                : "";
+
+            sourceDropdown.ClearOptions();
+
+            if (_currentSources.Count == 0)
+            {
+                sourceDropdown.AddOptions(new List<string> { "Scanning for NDI sources..." });
+                sourceDropdown.interactable = false;
+                return;
+            }
+
+            sourceDropdown.interactable = true;
+            var options = new List<string>();
+            int newSelection = 0;
+
+            for (int i = 0; i < _currentSources.Count; i++)
+            {
+                options.Add(_currentSources[i].Name);
+                // Maintain previous selection if source still exists
+                if (_currentSources[i].Name == previousName)
+                    newSelection = i;
+            }
+
+            sourceDropdown.AddOptions(options);
+            sourceDropdown.value = newSelection;
+        }
+
+        private void UpdateStatusDisplay(NDIReceiver.ConnectionState state)
+        {
+            if (statusText == null) return;
+
+            switch (state)
+            {
+                case NDIReceiver.ConnectionState.Connected:
+                    statusText.text = "Connected";
+                    SetIndicatorColor(connectedColor);
+                    break;
+
+                case NDIReceiver.ConnectionState.Connecting:
+                    statusText.text = "Connecting...";
+                    SetIndicatorColor(connectingColor);
+                    break;
+
+                case NDIReceiver.ConnectionState.Disconnected:
+                    statusText.text = "Disconnected";
+                    SetIndicatorColor(disconnectedColor);
+                    ClearFrameInfo();
+                    break;
+
+                case NDIReceiver.ConnectionState.Error:
+                    statusText.text = "Connection Error";
+                    SetIndicatorColor(errorColor);
+                    ClearFrameInfo();
+                    break;
+            }
+        }
+
+        private void UpdateConnectButton(NDIReceiver.ConnectionState state)
+        {
+            if (connectButtonText == null) return;
+
+            bool isActive = state == NDIReceiver.ConnectionState.Connected ||
+                           state == NDIReceiver.ConnectionState.Connecting;
+
+            connectButtonText.text = isActive ? "Disconnect" : "Connect";
+        }
+
+        private void SetStatusError(string message)
+        {
+            if (statusText != null)
+            {
+                statusText.text = message;
+                SetIndicatorColor(errorColor);
+            }
+        }
+
+        private void SetIndicatorColor(Color color)
+        {
+            if (connectionIndicator != null)
+                connectionIndicator.color = color;
+        }
+
+        private void ClearFrameInfo()
+        {
+            if (resolutionText != null) resolutionText.text = "-- x --";
+            if (fpsText != null) fpsText.text = "FPS: --";
+        }
+
+        private void UpdateUI()
+        {
+            if (sbsToggleLabel != null)
+            {
+                bool isOn = sbsToggle != null && sbsToggle.isOn;
+                sbsToggleLabel.text = isOn ? "SBS 3D: ON" : "SBS 3D: OFF";
+            }
+
+            UpdateStatusDisplay(receiver?.State ?? NDIReceiver.ConnectionState.Disconnected);
+            ClearFrameInfo();
+        }
+    }
+}
