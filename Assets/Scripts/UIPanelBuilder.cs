@@ -5,6 +5,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 using TMPro;
 
@@ -78,7 +79,7 @@ namespace NDIViewer
             rb.useGravity = false;
 
             var grabInteractable = panelRoot.AddComponent<XRGrabInteractable>();
-            grabInteractable.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+            grabInteractable.movementType = XRGrabInteractable.MovementType.VelocityTracking;
             grabInteractable.throwOnDetach = false;
             grabInteractable.useDynamicAttach = true;
 

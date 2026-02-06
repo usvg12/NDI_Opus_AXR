@@ -4,6 +4,7 @@
 
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace NDIViewer
 {
@@ -11,6 +12,7 @@ namespace NDIViewer
     /// Controls a spatial window in 3D space: positioning, resizing, and aspect ratio.
     /// Attaches to the video display quad/plane in the scene.
     /// Default: 2m wide at 2m distance from user, 16:9 aspect ratio.
+    /// Updated for XR Interaction Toolkit 3.4.
     /// </summary>
     [RequireComponent(typeof(XRGrabInteractable))]
     public class SpatialWindowController : MonoBehaviour
@@ -169,7 +171,7 @@ namespace NDIViewer
             if (_grabInteractable == null) return;
 
             // Allow both direct and ray grab
-            _grabInteractable.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+            _grabInteractable.movementType = XRGrabInteractable.MovementType.VelocityTracking;
             _grabInteractable.throwOnDetach = false;
             _grabInteractable.useDynamicAttach = true;
 
