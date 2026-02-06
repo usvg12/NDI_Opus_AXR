@@ -14,6 +14,7 @@ Real-time NDI video streaming viewer for Samsung Galaxy XR headset running in pa
 - **Floating UI Panel**: Source selector, connect button, SBS toggle, status/FPS display
 - **Adaptive Performance**: Dynamic resolution scaling to maintain 72+ FPS
 - **Network Resilience**: Disconnect detection with reconnection support
+- **Composition Layer Support**: Optional OpenXR composition layer rendering for sharper video output (requires Android XR Extensions)
 
 ## Project Structure
 
@@ -32,6 +33,7 @@ NDI_Opus_AXR/
 │   │   ├── XRRigSetup.cs             # XR Origin, hand tracking, ray interactors
 │   │   ├── SceneBootstrapper.cs       # Builds entire scene hierarchy at runtime
 │   │   ├── PassthroughConfigurator.cs # Manages passthrough/mixed reality mode
+│   │   ├── CompositionLayerVideoRenderer.cs # Optional OpenXR composition layer rendering
 │   │   ├── NetworkMonitor.cs          # Network connectivity monitoring
 │   │   └── PerformanceMonitor.cs      # FPS tracking and dynamic quality adjustment
 │   ├── Shaders/
@@ -64,24 +66,25 @@ NDI_Opus_AXR/
 ## Requirements
 
 ### Development Environment
-- **Unity 6** (latest LTS recommended)
+- **Unity 6** (6000.1.17f1 or later — required by Android XR Extensions 1.2.0)
 - **Android Build Support** module installed in Unity Hub
 - **Android SDK** API level 34+ (installed via Unity Hub or Android Studio)
 - **Android NDK** r26+ (installed via Unity Hub)
 - **JDK 11** (bundled with Unity)
 
 ### Unity Packages (auto-installed via manifest.json)
-- OpenXR Plugin (`com.unity.xr.openxr` 1.13.1+)
-- XR Plugin Management (`com.unity.xr.management` 4.5.0+)
-- XR Interaction Toolkit (`com.unity.xr.interaction.toolkit` 3.0.7+)
+- OpenXR Plugin (`com.unity.xr.openxr` 1.15.1+)
+- XR Plugin Management (`com.unity.xr.management` 4.5.1+)
+- XR Interaction Toolkit (`com.unity.xr.interaction.toolkit` 3.4.0+) — [Docs](https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4)
 - XR Hands (`com.unity.xr.hands` 1.6.0+)
+- AR Foundation (`com.unity.xr.arfoundation` 6.2.0+) — Required by Android XR Extensions 1.2.0
+- Android XR Extensions (`com.google.xr.extensions` 1.2.0+) — [GitHub](https://github.com/android/android-xr-unity-package)
 - Input System (`com.unity.inputsystem` 1.11.2+)
 - Universal Render Pipeline (`com.unity.render-pipelines.universal` 17.0.3+)
 - TextMeshPro (`com.unity.textmeshpro`)
 
 ### Additional Required Packages (manual install)
 - **Unity OpenXR: Android XR** — Install via Package Manager (Android XR scoped registry)
-- **Android XR Extensions for Unity** — From [GitHub](https://github.com/android/android-xr-unity-package)
 
 ### NDI SDK
 - **NDI Advanced SDK for Android** — Download from [ndi.video](https://ndi.video/tools/ndi-sdk/)
@@ -121,13 +124,15 @@ Open the project folder in **Unity 6** via Unity Hub.
 
 ### Step 3: Install Android XR Packages
 
+The Android XR Extensions package (`com.google.xr.extensions` 1.2.0) and AR Foundation
+(`com.unity.xr.arfoundation` 6.2.0) are now included in `manifest.json` and will
+be installed automatically. You only need to manually install the OpenXR Android XR loader:
+
 1. Open **Window > Package Manager**
 2. Click **+** > **Add package by name**
 3. Add: `com.unity.xr.openxr.androidxr` (Unity OpenXR: Android XR)
-4. Optionally add the Android XR Extensions package from GitHub:
-   ```
-   https://github.com/android/android-xr-unity-package.git
-   ```
+
+For the latest Android XR Extensions, see: https://github.com/android/android-xr-unity-package
 
 ### Step 4: Configure XR Plugin Management
 
@@ -293,3 +298,10 @@ This project code is provided as-is for development purposes.
 **NDI SDK**: NDI® is a registered trademark of Vizrt NDI AB. The NDI SDK is used under the NDI SDK License Agreement. Free for non-commercial use. For commercial deployment, review the [NDI SDK license terms](https://ndi.video/sdk/license/).
 
 **AndroidXR**: Android is a trademark of Google LLC. Samsung Galaxy XR is a trademark of Samsung Electronics.
+
+## Developer Documentation References
+
+- [XR Interaction Toolkit 3.4 Documentation](https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4)
+- [Android XR Unity Developer Guide](https://developer.android.com/develop/xr/unity)
+- [XR_ANDROID_composition_layer_passthrough_mesh Extension](https://developer.android.com/develop/xr/openxr/extensions/XR_ANDROID_composition_layer_passthrough_mesh)
+- [Android XR Unity Package (GitHub)](https://github.com/android/android-xr-unity-package)

@@ -1,14 +1,18 @@
 // XR Rig Setup - Configures the XR Origin, hand tracking, and interaction system
 // For AndroidXR with OpenXR on Samsung Galaxy XR
+// Aligned with XR Interaction Toolkit 3.4 and Android XR developer guidelines:
+// https://developer.android.com/develop/xr/unity
 
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 namespace NDIViewer
 {
     /// <summary>
     /// Configures the XR interaction rig at runtime.
     /// Sets up hand tracking interactors, eye gaze, and ray interaction.
+    /// Uses XRI 3.4 APIs with the Hand Interaction Profile for Android XR.
     /// Attach to the XR Origin root GameObject.
     /// </summary>
     public class XRRigSetup : MonoBehaviour
@@ -96,11 +100,13 @@ namespace NDIViewer
             handGO.transform.localRotation = Quaternion.identity;
 
             // Add ray interactor for distance interaction (UI panels, window grab)
+            // On Android XR with Hand Interaction Profile, the ray origin tracks
+            // the hand's aim pose as defined by the OpenXR hand interaction extension.
             var rayInteractor = handGO.AddComponent<XRRayInteractor>();
             rayInteractor.maxRaycastDistance = rayMaxDistance;
             rayInteractor.enableUIInteraction = true;
 
-            // Add direct interactor for close-range grab
+            // Add direct interactor for close-range grab (pinch gesture)
             var directGO = new GameObject("Direct Interactor");
             directGO.transform.SetParent(handGO.transform);
             directGO.transform.localPosition = Vector3.zero;
@@ -118,7 +124,7 @@ namespace NDIViewer
             var lineVisual = handGO.AddComponent<XRInteractorLineVisual>();
             lineVisual.lineLength = rayMaxDistance;
 
-            Debug.Log($"[XR Rig] Created {handName} interactor.");
+            Debug.Log($"[XR Rig] Created {handName} interactor (Hand Interaction Profile).");
         }
     }
 }

@@ -97,6 +97,9 @@ namespace NDIViewer
 
             var windowController = videoWindowGO.AddComponent<SpatialWindowController>();
 
+            // Optional: composition layer rendering for sharper video output
+            videoWindowGO.AddComponent<CompositionLayerVideoRenderer>();
+
             // ─── 6. UI Control Panel ──────────────────────────────────
             var uiBuilderGO = new GameObject("UI Builder");
             var uiBuilder = uiBuilderGO.AddComponent<UIPanelBuilder>();

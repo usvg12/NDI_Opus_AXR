@@ -24,14 +24,17 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
-    <!-- Hand tracking for spatial interaction -->
+    <!-- Hand tracking for spatial interaction (Android XR) -->
     <uses-permission android:name="android.permission.HAND_TRACKING" />
 
-    <!-- Eye tracking for foveated rendering -->
+    <!-- Eye tracking for foveated rendering (Android XR) -->
     <uses-permission android:name="android.permission.EYE_TRACKING_FINE" />
 
     <!-- Passthrough camera permission -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Scene understanding for spatial awareness (Android XR Extensions) -->
+    <uses-permission android:name="android.permission.SCENE_UNDERSTANDING" />
 
     <application
         android:label="NDI XR Viewer"
