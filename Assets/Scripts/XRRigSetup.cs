@@ -6,6 +6,7 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace NDIViewer
 {
@@ -62,7 +63,43 @@ namespace NDIViewer
                 SetupHandInteractors();
             }
 
+            ValidateUIInputPipeline();
             Debug.Log("[XR Rig] Setup complete.");
+        }
+
+        /// <summary>
+        /// Validates that the XR UI input pipeline is fully wired. Logs warnings
+        /// for missing components that would cause silent input failures.
+        /// </summary>
+        private void ValidateUIInputPipeline()
+        {
+            var eventSystem = FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+            if (eventSystem == null)
+            {
+                Debug.LogError("[XR Rig] No EventSystem found. UI input will not work.");
+                return;
+            }
+
+            var inputModule = eventSystem.GetComponent<XRUIInputModule>();
+            if (inputModule == null)
+            {
+                Debug.LogError("[XR Rig] EventSystem is missing XRUIInputModule. " +
+                    "Standard InputModule will not process XR hand/controller input.");
+            }
+            else if (!inputModule.enableXRInput)
+            {
+                Debug.LogWarning("[XR Rig] XRUIInputModule.enableXRInput is false. " +
+                    "XR controller/hand input will be ignored.");
+            }
+
+            // Check for multiple EventSystems (common source of silent breakage)
+            var allEventSystems = FindObjectsByType<UnityEngine.EventSystems.EventSystem>(
+                FindObjectsSortMode.None);
+            if (allEventSystems.Length > 1)
+            {
+                Debug.LogError($"[XR Rig] {allEventSystems.Length} EventSystems found. " +
+                    "Multiple EventSystems cause unpredictable input routing. Remove duplicates.");
+            }
         }
 
         private void ConfigureCamera()

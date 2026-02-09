@@ -37,9 +37,28 @@ namespace NDIViewer
             interactionManagerGO.AddComponent<XRInteractionManager>();
 
             // ─── 2. Event System for XR UI ────────────────────────────
+            // Guard against duplicate EventSystems — a second instance silently
+            // breaks all UI input, which is a common XR friction point.
+            var existingEventSystem = FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+            if (existingEventSystem != null)
+            {
+                Debug.LogWarning("[Bootstrapper] Destroying pre-existing EventSystem to avoid " +
+                    "duplicate input module conflicts.");
+                DestroyImmediate(existingEventSystem.gameObject);
+            }
+
             var eventSystemGO = new GameObject("EventSystem");
             eventSystemGO.AddComponent<UnityEngine.EventSystems.EventSystem>();
-            eventSystemGO.AddComponent<XRUIInputModule>();
+            var xrInputModule = eventSystemGO.AddComponent<XRUIInputModule>();
+
+            // Explicitly enable XR pointer input behaviour. Without this the
+            // module may fall back to mouse/gamepad processing on some platforms.
+            xrInputModule.enableXRInput = true;
+            xrInputModule.enableMouseInput = false;
+            xrInputModule.enableTouchInput = false;
+
+            Debug.Log("[Bootstrapper] XRUIInputModule configured " +
+                "(XR input enabled, mouse/touch disabled).");
 
             // ─── 3. XR Origin (Camera Rig) ────────────────────────────
             var xrOriginGO = new GameObject("XR Origin");

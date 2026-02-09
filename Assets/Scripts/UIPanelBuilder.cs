@@ -103,7 +103,9 @@ namespace NDIViewer
             var scaler = canvasGO.AddComponent<CanvasScaler>();
             scaler.dynamicPixelsPerUnit = 10;
 
-            canvasGO.AddComponent<GraphicRaycaster>();
+            // TrackedDeviceGraphicRaycaster handles XR controller/hand raycasting.
+            // Standard GraphicRaycaster is intentionally omitted to avoid duplicate
+            // event processing that causes double-tap and missed input issues in XR.
             canvasGO.AddComponent<TrackedDeviceGraphicRaycaster>();
 
             // Background panel
