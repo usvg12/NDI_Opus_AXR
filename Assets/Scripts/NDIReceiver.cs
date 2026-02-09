@@ -278,29 +278,22 @@ namespace NDIViewer
             // Validate pixel format: we requested RGBX_RGBA, so we expect RGBA or RGBX (both 4 bpp)
             bool isRGBA = frame.fourCC == NDIInterop.NDIFourCC.RGBA ||
                           frame.fourCC == NDIInterop.NDIFourCC.RGBX;
-            if (!isRGBA)
+            bool isBGRA = frame.fourCC == NDIInterop.NDIFourCC.BGRA ||
+                          frame.fourCC == NDIInterop.NDIFourCC.BGRX;
+            if (!isRGBA && !isBGRA)
             {
-                // Also accept BGRA/BGRX as fallback (SDK may negotiate differently)
-                bool isBGRA = frame.fourCC == NDIInterop.NDIFourCC.BGRA ||
-                              frame.fourCC == NDIInterop.NDIFourCC.BGRX;
-                if (!isBGRA)
+                // Unsupported format - log once per N frames to avoid spam
+                FormatMismatches++;
+                if (FormatMismatches <= 3 || FormatMismatches % 100 == 0)
                 {
-                    // Unsupported format - log once per N frames to avoid spam
-                    FormatMismatches++;
-                    if (FormatMismatches <= 3 || FormatMismatches % 100 == 0)
-                    {
-                        Debug.LogWarning($"[NDI Receiver] Unsupported FourCC: 0x{(uint)frame.fourCC:X8} " +
-                            $"(expected RGBA/RGBX). Frame skipped. Count: {FormatMismatches}");
-                    }
-                    return;
+                    Debug.LogWarning($"[NDI Receiver] Unsupported FourCC: 0x{(uint)frame.fourCC:X8} " +
+                        $"(expected RGBA/RGBX). Frame skipped. Count: {FormatMismatches}");
                 }
-                // BGRA: we'll still copy but the colors will be channel-swapped.
-                // Log a warning so users know to check their NDI source settings.
-                if (FormatMismatches == 0)
-                {
-                    Debug.LogWarning("[NDI Receiver] Receiving BGRA format instead of RGBA. " +
-                        "Colors may appear swapped. Consider configuring source for RGBA output.");
-                }
+                return;
+            }
+            if (isBGRA && FormatMismatches == 0)
+            {
+                Debug.Log("[NDI Receiver] Receiving BGRA/BGRX format; will convert to RGBA.");
                 FormatMismatches++;
             }
 
@@ -353,6 +346,17 @@ namespace NDIViewer
                 {
                     Buffer.BlockCopy(_strideScratch, row * nativeStride,
                                      _backBuffer, row * tightStride, tightStride);
+                }
+            }
+
+            // Convert BGRA/BGRX → RGBA/RGBX by swapping R and B channels in-place
+            if (isBGRA)
+            {
+                for (int i = 0; i < tightByteCount; i += 4)
+                {
+                    byte tmp = _backBuffer[i];       // B
+                    _backBuffer[i] = _backBuffer[i + 2]; // R → position 0
+                    _backBuffer[i + 2] = tmp;            // B → position 2
                 }
             }
 
