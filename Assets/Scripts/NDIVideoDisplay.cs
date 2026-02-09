@@ -1,5 +1,6 @@
 // NDI Video Display - Renders NDI video frames onto a spatial 3D quad
 // Manages the SBS shader material and stereo rendering.
+// Includes test pattern fallback when NDI library is unavailable.
 
 using UnityEngine;
 
@@ -8,6 +9,8 @@ namespace NDIViewer
     /// <summary>
     /// Renders NDI video frames onto the spatial window mesh.
     /// Controls the SBS stereo shader and texture updates.
+    /// When NDI is unavailable, displays a built-in SBS test pattern
+    /// with a status message overlay.
     /// Attach to the same GameObject as SpatialWindowController.
     /// </summary>
     [RequireComponent(typeof(MeshRenderer))]
@@ -36,9 +39,12 @@ namespace NDIViewer
         private bool _sbsEnabled;
         private SpatialWindowController _windowController;
         private MeshRenderer _meshRenderer;
+        private bool _testPatternActive;
+        private Texture2D _placeholderTexture;
 
         public bool SBSEnabled => _sbsEnabled;
         public Material DisplayMaterial => _material;
+        public bool IsTestPatternActive => _testPatternActive;
 
         private void Awake()
         {
@@ -85,6 +91,7 @@ namespace NDIViewer
         {
             if (_material == null || texture == null) return;
 
+            _testPatternActive = false;
             _material.SetTexture(MainTexProp, texture);
 
             // Update window aspect ratio based on video dimensions and SBS mode
@@ -139,15 +146,54 @@ namespace NDIViewer
         {
             if (_material == null) return;
 
-            // Create a small dark placeholder texture
-            var placeholder = new Texture2D(4, 4, TextureFormat.RGBA32, false);
-            var pixels = new Color32[16];
-            for (int i = 0; i < 16; i++)
-                pixels[i] = new Color32(20, 20, 25, 255);
-            placeholder.SetPixels32(pixels);
-            placeholder.Apply();
+            _testPatternActive = false;
 
-            _material.SetTexture(MainTexProp, placeholder);
+            // Reuse placeholder texture (avoid per-call allocation)
+            if (_placeholderTexture == null)
+            {
+                _placeholderTexture = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+                var pixels = new Color32[16];
+                for (int i = 0; i < 16; i++)
+                    pixels[i] = new Color32(20, 20, 25, 255);
+                _placeholderTexture.SetPixels32(pixels);
+                _placeholderTexture.Apply();
+            }
+
+            _material.SetTexture(MainTexProp, _placeholderTexture);
+        }
+
+        /// <summary>
+        /// Switch to the built-in SBS test pattern. Called when NDI library is unavailable.
+        /// The test pattern animates each frame to show the display pipeline is working.
+        /// </summary>
+        public void ShowTestPattern()
+        {
+            if (_material == null) return;
+
+            _testPatternActive = true;
+            var tex = TestPatternGenerator.GetTexture();
+            _material.SetTexture(MainTexProp, tex);
+
+            // Set SBS mode on and configure aspect ratio for the test pattern
+            SetSBSMode(true);
+            if (_windowController != null)
+            {
+                _windowController.SetSBSMode(true,
+                    TestPatternGenerator.PATTERN_WIDTH, TestPatternGenerator.PATTERN_HEIGHT);
+            }
+
+            Debug.Log("[NDI Display] Test pattern active (NDI library unavailable). " +
+                "SBS mode enabled for stereo validation.");
+        }
+
+        private void Update()
+        {
+            // Animate test pattern if active
+            if (_testPatternActive && _material != null)
+            {
+                var tex = TestPatternGenerator.UpdatePattern();
+                _material.SetTexture(MainTexProp, tex);
+            }
         }
 
         /// <summary>Create a simple quad mesh for video display.</summary>
@@ -187,6 +233,10 @@ namespace NDIViewer
             if (_material != null)
             {
                 Destroy(_material);
+            }
+            if (_placeholderTexture != null)
+            {
+                Destroy(_placeholderTexture);
             }
         }
     }

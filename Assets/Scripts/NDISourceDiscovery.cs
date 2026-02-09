@@ -12,6 +12,7 @@ namespace NDIViewer
     /// <summary>
     /// Discovers NDI sources on the local network using a background thread.
     /// Provides an event-driven interface for UI to display available sources.
+    /// Handles missing native library gracefully by reporting the error state.
     /// </summary>
     public class NDISourceDiscovery : MonoBehaviour
     {
@@ -24,6 +25,9 @@ namespace NDIViewer
 
         /// <summary>Fired on the main thread when the source list changes.</summary>
         public event Action<List<DiscoveredSource>> OnSourcesUpdated;
+
+        /// <summary>Fired on the main thread when the NDI library is unavailable.</summary>
+        public event Action<string> OnNDILibraryUnavailable;
 
         /// <summary>Represents a discovered NDI source.</summary>
         public class DiscoveredSource
@@ -41,6 +45,12 @@ namespace NDIViewer
         private readonly object _lock = new object();
         private List<DiscoveredSource> _pendingSources;
         private bool _hasPendingUpdate;
+
+        /// <summary>True if the NDI native library failed to load.</summary>
+        public bool IsNDIUnavailable { get; private set; }
+
+        /// <summary>Human-readable reason if NDI is unavailable.</summary>
+        public string NDIUnavailableReason { get; private set; }
 
         public List<DiscoveredSource> CurrentSources { get; private set; } = new List<DiscoveredSource>();
         public bool IsDiscovering => _running;
@@ -60,9 +70,34 @@ namespace NDIViewer
         {
             if (_running) return;
 
-            if (!NDIInterop.Initialize())
+            // Attempt to initialize NDI - handle missing native library
+            try
             {
-                Debug.LogError("[NDI Discovery] Failed to initialize NDI library.");
+                if (!NDIInterop.Initialize())
+                {
+                    Debug.LogError("[NDI Discovery] NDIlib_initialize returned false. NDI library may be corrupt or incompatible.");
+                    IsNDIUnavailable = true;
+                    NDIUnavailableReason = "NDI library initialization failed. The library may be corrupt or incompatible with this device.";
+                    OnNDILibraryUnavailable?.Invoke(NDIUnavailableReason);
+                    return;
+                }
+            }
+            catch (DllNotFoundException ex)
+            {
+                Debug.LogError($"[NDI Discovery] Native NDI library not found: {ex.Message}");
+                Debug.LogError("[NDI Discovery] Expected: Assets/Plugins/NDI/Android/arm64-v8a/libndi.so");
+                Debug.LogError("[NDI Discovery] Download NDI SDK from https://ndi.video/tools/ndi-sdk/");
+                IsNDIUnavailable = true;
+                NDIUnavailableReason = "libndi.so not found. Download the NDI SDK from ndi.video and place libndi.so in Plugins/NDI/Android/arm64-v8a/.";
+                OnNDILibraryUnavailable?.Invoke(NDIUnavailableReason);
+                return;
+            }
+            catch (EntryPointNotFoundException ex)
+            {
+                Debug.LogError($"[NDI Discovery] NDI library version mismatch: {ex.Message}");
+                IsNDIUnavailable = true;
+                NDIUnavailableReason = "NDI library version mismatch. Ensure you have the NDI Advanced SDK (not the standard SDK).";
+                OnNDILibraryUnavailable?.Invoke(NDIUnavailableReason);
                 return;
             }
 

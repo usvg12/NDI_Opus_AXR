@@ -15,6 +15,7 @@ namespace NDIViewer
     /// - NDI video display window (spatial, grabbable)
     /// - Floating UI control panel
     /// - All manager components (NDI discovery, receiver, network, performance)
+    /// - Diagnostics overlay (hidden by default, toggleable)
     /// </summary>
     public class SceneBootstrapper : MonoBehaviour
     {
@@ -119,7 +120,13 @@ namespace NDIViewer
             WireAppController(appController, sourceDiscovery, receiver, videoDisplay,
                 windowController, uiController);
 
-            // ─── 8. Wire receiver events ──────────────────────────────
+            // ─── 8. Diagnostics Overlay ───────────────────────────────
+            var diagGO = new GameObject("Diagnostics");
+            var diagnostics = diagGO.AddComponent<DiagnosticsOverlay>();
+            diagnostics.SetReferences(receiver, performanceMonitor);
+            diagnostics.Initialize();
+
+            // ─── 9. Wire receiver events ──────────────────────────────
             receiver.OnVideoFrameReceived += (texture, info) =>
             {
                 videoDisplay.UpdateVideoFrame(texture, info);
