@@ -31,6 +31,7 @@ namespace NDIViewer
         [SerializeField] private int gpuPerformanceLevel = 3;
 
         private bool _initialized;
+        private bool _shutdown;
 
         private void Awake()
         {
@@ -146,9 +147,13 @@ namespace NDIViewer
 
         /// <summary>
         /// Clean shutdown: disconnect NDI, release resources.
+        /// Idempotent — safe to call from both OnApplicationQuit and OnDestroy.
         /// </summary>
-        private void OnApplicationQuit()
+        private void Shutdown()
         {
+            if (_shutdown) return;
+            _shutdown = true;
+
             Debug.Log("[App] Shutting down NDI XR Viewer...");
 
             // Disconnect NDI receiver
@@ -169,9 +174,14 @@ namespace NDIViewer
             Debug.Log("[App] Shutdown complete.");
         }
 
+        private void OnApplicationQuit()
+        {
+            Shutdown();
+        }
+
         private void OnDestroy()
         {
-            OnApplicationQuit();
+            Shutdown();
         }
     }
 }
