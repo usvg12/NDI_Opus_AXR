@@ -2,6 +2,7 @@
 // Handles disconnection detection and reconnection attempts.
 
 using System;
+using System.Linq;
 using UnityEngine;
 
 namespace NDIViewer
@@ -9,6 +10,8 @@ namespace NDIViewer
     /// <summary>
     /// Monitors network connectivity and provides notifications for
     /// connection loss/recovery relevant to NDI streaming.
+    /// On network recovery, automatically reconnects to the last NDI source
+    /// once it reappears in discovery.
     /// </summary>
     public class NetworkMonitor : MonoBehaviour
     {
@@ -22,6 +25,9 @@ namespace NDIViewer
         [Tooltip("Attempt automatic reconnection on network recovery")]
         [SerializeField] private bool autoReconnect = true;
 
+        [Tooltip("Max seconds to wait for the source to reappear after network recovery")]
+        [SerializeField] private float reconnectTimeoutSeconds = 30.0f;
+
         /// <summary>Fired when network connectivity is lost.</summary>
         public event Action OnNetworkLost;
 
@@ -34,10 +40,26 @@ namespace NDIViewer
         private int _consecutiveFailures;
         private bool _wasConnected = true;
         private NDIReceiver _receiver;
+        private NDISourceDiscovery _discovery;
+
+        // Reconnection state
+        private bool _waitingForReconnect;
+        private string _reconnectSourceName;
+        private float _reconnectTimer;
 
         private void Start()
         {
             _receiver = FindFirstObjectByType<NDIReceiver>();
+            if (_discovery == null)
+                _discovery = FindFirstObjectByType<NDISourceDiscovery>();
+        }
+
+        /// <summary>
+        /// Set the source discovery reference (called by SceneBootstrapper).
+        /// </summary>
+        public void SetDiscovery(NDISourceDiscovery discovery)
+        {
+            _discovery = discovery;
         }
 
         private void Update()
@@ -48,6 +70,11 @@ namespace NDIViewer
             {
                 _checkTimer = 0;
                 CheckConnectivity();
+            }
+
+            if (_waitingForReconnect)
+            {
+                TryReconnect();
             }
         }
 
@@ -65,6 +92,16 @@ namespace NDIViewer
                     _wasConnected = false;
                     IsNetworkAvailable = false;
                     Debug.LogWarning("[Network] Connectivity lost.");
+
+                    // Remember that we need to reconnect when network returns
+                    if (autoReconnect && _receiver != null &&
+                        !string.IsNullOrEmpty(_receiver.LastConnectedSourceName) &&
+                        (_receiver.State == NDIReceiver.ConnectionState.Connected ||
+                         _receiver.State == NDIReceiver.ConnectionState.Connecting))
+                    {
+                        _reconnectSourceName = _receiver.LastConnectedSourceName;
+                    }
+
                     OnNetworkLost?.Invoke();
                 }
             }
@@ -79,14 +116,47 @@ namespace NDIViewer
                     Debug.Log("[Network] Connectivity restored.");
                     OnNetworkRestored?.Invoke();
 
-                    // Auto-reconnect if receiver was connected
-                    if (autoReconnect && _receiver != null &&
-                        _receiver.State == NDIReceiver.ConnectionState.Error)
+                    // Start waiting for the source to reappear in discovery
+                    if (autoReconnect && _receiver != null && _discovery != null &&
+                        !string.IsNullOrEmpty(_reconnectSourceName) &&
+                        (_receiver.State == NDIReceiver.ConnectionState.Error ||
+                         _receiver.State == NDIReceiver.ConnectionState.Disconnected))
                     {
-                        Debug.Log("[Network] Auto-reconnection available. " +
-                            "User can reconnect via UI.");
+                        Debug.Log($"[Network] Will auto-reconnect to \"{_reconnectSourceName}\" " +
+                            "once it reappears in source discovery.");
+                        _waitingForReconnect = true;
+                        _reconnectTimer = 0f;
                     }
                 }
+            }
+        }
+
+        private void TryReconnect()
+        {
+            _reconnectTimer += Time.unscaledDeltaTime;
+
+            if (_reconnectTimer > reconnectTimeoutSeconds)
+            {
+                Debug.LogWarning($"[Network] Auto-reconnect timed out after {reconnectTimeoutSeconds}s. " +
+                    $"Source \"{_reconnectSourceName}\" did not reappear.");
+                _waitingForReconnect = false;
+                _reconnectSourceName = null;
+                return;
+            }
+
+            // Check if the source has reappeared in the discovery list
+            if (_discovery.CurrentSources == null || _discovery.CurrentSources.Count == 0)
+                return;
+
+            var match = _discovery.CurrentSources
+                .FirstOrDefault(s => s.Name == _reconnectSourceName);
+
+            if (match != null)
+            {
+                Debug.Log($"[Network] Source \"{_reconnectSourceName}\" found. Reconnecting...");
+                _waitingForReconnect = false;
+                _reconnectSourceName = null;
+                _receiver.Connect(match);
             }
         }
     }

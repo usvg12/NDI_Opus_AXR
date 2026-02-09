@@ -94,6 +94,7 @@ namespace NDIViewer
             var sourceDiscovery = managersGO.AddComponent<NDISourceDiscovery>();
             var receiver = managersGO.AddComponent<NDIReceiver>();
             var networkMonitor = managersGO.AddComponent<NetworkMonitor>();
+            networkMonitor.SetDiscovery(sourceDiscovery);
             var performanceMonitor = managersGO.AddComponent<PerformanceMonitor>();
 
             // ─── 5. Video Display Window ──────────────────────────────

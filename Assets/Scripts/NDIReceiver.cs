@@ -53,6 +53,9 @@ namespace NDIViewer
         public int DroppedFrames { get; private set; }
         public int TotalFrames { get; private set; }
 
+        /// <summary>Name of the last source passed to Connect(), used for auto-reconnection.</summary>
+        public string LastConnectedSourceName { get; private set; }
+
         // Native handles
         private IntPtr _recvInstance = IntPtr.Zero;
         private Thread _captureThread;
@@ -99,6 +102,9 @@ namespace NDIViewer
                 Debug.LogError("[NDI Receiver] Cannot connect: source is null.");
                 return;
             }
+
+            // Remember source name for auto-reconnection
+            LastConnectedSourceName = source.Name;
 
             // Disconnect existing connection
             Disconnect();
