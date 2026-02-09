@@ -3,15 +3,17 @@
 // Non-commercial NDI SDK license.
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace NDIViewer
 {
     /// <summary>
     /// Receives NDI video frames from a connected source and updates a Texture2D.
     /// Runs frame capture on a background thread for minimal main-thread impact.
-    /// Optimized for low-latency streaming (target < 50ms).
+    /// Uses double-buffering to minimize lock contention between capture and render threads.
     /// </summary>
     public class NDIReceiver : MonoBehaviour
     {
@@ -56,9 +58,12 @@ namespace NDIViewer
         private Thread _captureThread;
         private volatile bool _capturing;
 
-        // Frame buffer for thread-safe transfer
+        // Double-buffered frame transfer: capture thread writes to _backBuffer,
+        // then swaps the reference under a brief lock. Main thread reads _frontBuffer
+        // outside the lock for GPU upload.
         private readonly object _frameLock = new object();
-        private byte[] _frameBuffer;
+        private byte[] _backBuffer;      // Capture thread writes here (tightly packed RGBA)
+        private byte[] _frontBuffer;     // Main thread reads from here
         private int _frameWidth;
         private int _frameHeight;
         private float _frameFps;
@@ -67,10 +72,22 @@ namespace NDIViewer
         private volatile bool _connectionChanged;
         private volatile ConnectionState _pendingState;
 
+        // Stride-stripping scratch buffer (reused, never allocated per-frame
+        // unless dimensions change)
+        private byte[] _strideScratch;
+
         // Performance tracking
         private float _fpsTimer;
         private int _fpsCounter;
         private float _currentFps;
+
+        // Diagnostics (public for stats overlay)
+        /// <summary>Last measured GPU upload time in milliseconds.</summary>
+        public float LastUploadTimeMs { get; private set; }
+        /// <summary>Frames where stride != width*bpp (padding was stripped).</summary>
+        public int StrideFixups { get; private set; }
+        /// <summary>Frames where FourCC was not RGBA/RGBX (skipped).</summary>
+        public int FormatMismatches { get; private set; }
 
         /// <summary>
         /// Connect to the specified NDI source. Disconnects any existing connection first.
@@ -163,12 +180,16 @@ namespace NDIViewer
 
             lock (_frameLock)
             {
-                _frameBuffer = null;
+                _backBuffer = null;
+                _frontBuffer = null;
+                _strideScratch = null;
                 _newFrameAvailable = false;
             }
 
             DroppedFrames = 0;
             TotalFrames = 0;
+            StrideFixups = 0;
+            FormatMismatches = 0;
             _currentFps = 0;
 
             SetState(ConnectionState.Disconnected);
@@ -238,23 +259,105 @@ namespace NDIViewer
             }
         }
 
+        /// <summary>
+        /// Process a video frame on the capture thread.
+        /// Copies pixel data into back buffer (stripping stride padding if needed),
+        /// then swaps into front buffer under a brief lock.
+        /// </summary>
         private void ProcessVideoFrame(ref NDIInterop.NDIVideoFrame frame)
         {
             if (frame.data == IntPtr.Zero || frame.width <= 0 || frame.height <= 0)
                 return;
 
-            int byteCount = frame.lineStrideBytes * frame.height;
-
-            lock (_frameLock)
+            // Validate pixel format: we requested RGBX_RGBA, so we expect RGBA or RGBX (both 4 bpp)
+            bool isRGBA = frame.fourCC == NDIInterop.NDIFourCC.RGBA ||
+                          frame.fourCC == NDIInterop.NDIFourCC.RGBX;
+            if (!isRGBA)
             {
-                // Reallocate buffer if dimensions changed
-                if (_frameBuffer == null || _frameBuffer.Length != byteCount)
+                // Also accept BGRA/BGRX as fallback (SDK may negotiate differently)
+                bool isBGRA = frame.fourCC == NDIInterop.NDIFourCC.BGRA ||
+                              frame.fourCC == NDIInterop.NDIFourCC.BGRX;
+                if (!isBGRA)
                 {
-                    _frameBuffer = new byte[byteCount];
+                    // Unsupported format - log once per N frames to avoid spam
+                    FormatMismatches++;
+                    if (FormatMismatches <= 3 || FormatMismatches % 100 == 0)
+                    {
+                        Debug.LogWarning($"[NDI Receiver] Unsupported FourCC: 0x{(uint)frame.fourCC:X8} " +
+                            $"(expected RGBA/RGBX). Frame skipped. Count: {FormatMismatches}");
+                    }
+                    return;
+                }
+                // BGRA: we'll still copy but the colors will be channel-swapped.
+                // Log a warning so users know to check their NDI source settings.
+                if (FormatMismatches == 0)
+                {
+                    Debug.LogWarning("[NDI Receiver] Receiving BGRA format instead of RGBA. " +
+                        "Colors may appear swapped. Consider configuring source for RGBA output.");
+                }
+                FormatMismatches++;
+            }
+
+            int bpp = 4; // bytes per pixel for RGBA/RGBX/BGRA/BGRX
+            int tightStride = frame.width * bpp;
+            int tightByteCount = tightStride * frame.height;
+            int nativeStride = frame.lineStrideBytes;
+
+            // Ensure nativeStride is sane
+            if (nativeStride < tightStride)
+            {
+                Debug.LogError($"[NDI Receiver] lineStrideBytes ({nativeStride}) < width*4 ({tightStride}). Frame corrupt, skipping.");
+                return;
+            }
+
+            // Allocate/reuse back buffer (only reallocate on dimension change)
+            if (_backBuffer == null || _backBuffer.Length != tightByteCount)
+            {
+                _backBuffer = new byte[tightByteCount];
+                Debug.Log($"[NDI Receiver] Allocated back buffer: {frame.width}x{frame.height} " +
+                    $"({tightByteCount} bytes, stride={nativeStride})");
+            }
+
+            // Copy frame data, handling stride padding
+            if (nativeStride == tightStride)
+            {
+                // Fast path: no padding, single bulk copy
+                System.Runtime.InteropServices.Marshal.Copy(frame.data, _backBuffer, 0, tightByteCount);
+            }
+            else
+            {
+                // Stride has padding: copy row-by-row, stripping extra bytes.
+                // Use scratch buffer to avoid per-row P/Invoke overhead:
+                // copy entire native buffer then compact in managed code.
+                StrideFixups++;
+                int nativeByteCount = nativeStride * frame.height;
+
+                if (_strideScratch == null || _strideScratch.Length < nativeByteCount)
+                {
+                    _strideScratch = new byte[nativeByteCount];
+                    Debug.Log($"[NDI Receiver] Stride mismatch detected: native={nativeStride}, " +
+                        $"tight={tightStride}. Allocated stride scratch buffer ({nativeByteCount} bytes).");
                 }
 
-                // Copy frame data (this is the critical path for latency)
-                System.Runtime.InteropServices.Marshal.Copy(frame.data, _frameBuffer, 0, byteCount);
+                // Single bulk copy from native
+                System.Runtime.InteropServices.Marshal.Copy(frame.data, _strideScratch, 0, nativeByteCount);
+
+                // Strip padding row by row (managed memory, fast)
+                for (int row = 0; row < frame.height; row++)
+                {
+                    Buffer.BlockCopy(_strideScratch, row * nativeStride,
+                                     _backBuffer, row * tightStride, tightStride);
+                }
+            }
+
+            // Swap back buffer into front buffer under a brief lock.
+            // The lock only protects the reference swap and metadata, not the heavy copy.
+            lock (_frameLock)
+            {
+                // Swap references: old front becomes available for next capture
+                var temp = _frontBuffer;
+                _frontBuffer = _backBuffer;
+                _backBuffer = temp; // Reuse old front as next back (avoid allocation)
 
                 _frameWidth = frame.width;
                 _frameHeight = frame.height;
@@ -276,45 +379,71 @@ namespace NDIViewer
             // Process new video frame on main thread
             if (_newFrameAvailable)
             {
+                byte[] uploadBuffer = null;
+                int w = 0, h = 0;
+                float fps = 0;
+                long ts = 0;
+
+                // Brief lock: snapshot the front buffer reference and metadata,
+                // then release. GPU upload happens outside the lock.
                 lock (_frameLock)
                 {
-                    if (_frameBuffer != null && _frameWidth > 0 && _frameHeight > 0)
+                    if (_frontBuffer != null && _frameWidth > 0 && _frameHeight > 0)
                     {
-                        // Create or resize texture as needed
-                        if (VideoTexture == null ||
-                            VideoTexture.width != _frameWidth ||
-                            VideoTexture.height != _frameHeight)
+                        uploadBuffer = _frontBuffer;
+                        w = _frameWidth;
+                        h = _frameHeight;
+                        fps = _frameFps;
+                        ts = _frameTimestamp;
+                    }
+                    _newFrameAvailable = false;
+                }
+
+                if (uploadBuffer != null)
+                {
+                    // Create or resize texture as needed (outside lock)
+                    if (VideoTexture == null ||
+                        VideoTexture.width != w ||
+                        VideoTexture.height != h)
+                    {
+                        if (VideoTexture != null) Destroy(VideoTexture);
+
+                        // Use RGBA32 for direct buffer upload
+                        VideoTexture = new Texture2D(w, h, TextureFormat.RGBA32, false)
                         {
-                            if (VideoTexture != null) Destroy(VideoTexture);
-
-                            // Use RGBA32 for direct buffer upload
-                            VideoTexture = new Texture2D(
-                                _frameWidth, _frameHeight,
-                                TextureFormat.RGBA32, false)
-                            {
-                                filterMode = FilterMode.Bilinear,
-                                wrapMode = TextureWrapMode.Clamp
-                            };
-
-                            Debug.Log($"[NDI Receiver] Created texture: {_frameWidth}x{_frameHeight}");
-                        }
-
-                        // Upload pixel data to GPU
-                        VideoTexture.LoadRawTextureData(_frameBuffer);
-                        VideoTexture.Apply(false);
-
-                        LastFrameInfo = new FrameInfo
-                        {
-                            Width = _frameWidth,
-                            Height = _frameHeight,
-                            Fps = _frameFps,
-                            Timestamp = _frameTimestamp
+                            filterMode = FilterMode.Bilinear,
+                            wrapMode = TextureWrapMode.Clamp
                         };
 
-                        OnVideoFrameReceived?.Invoke(VideoTexture, LastFrameInfo);
+                        Debug.Log($"[NDI Receiver] Created texture: {w}x{h}");
                     }
 
-                    _newFrameAvailable = false;
+                    // Validate buffer size matches texture expectation
+                    int expectedBytes = w * h * 4;
+                    if (uploadBuffer.Length != expectedBytes)
+                    {
+                        Debug.LogError($"[NDI Receiver] Buffer size mismatch: buffer={uploadBuffer.Length}, " +
+                            $"expected={expectedBytes} ({w}x{h}x4). Skipping upload.");
+                    }
+                    else
+                    {
+                        // GPU upload (outside lock - capture thread is not blocked)
+                        long uploadStart = Stopwatch.GetTimestamp();
+                        VideoTexture.LoadRawTextureData(uploadBuffer);
+                        VideoTexture.Apply(false);
+                        long uploadEnd = Stopwatch.GetTimestamp();
+                        LastUploadTimeMs = (float)(uploadEnd - uploadStart) / Stopwatch.Frequency * 1000f;
+                    }
+
+                    LastFrameInfo = new FrameInfo
+                    {
+                        Width = w,
+                        Height = h,
+                        Fps = fps,
+                        Timestamp = ts
+                    };
+
+                    OnVideoFrameReceived?.Invoke(VideoTexture, LastFrameInfo);
                 }
 
                 // FPS calculation

@@ -12,6 +12,7 @@ namespace NDIViewer
     /// <summary>
     /// Manages the floating control panel UI in 3D space.
     /// Handles NDI source list, connection controls, SBS toggle, and status display.
+    /// Shows clear status messages when NDI library is unavailable.
     /// </summary>
     public class UIController : MonoBehaviour
     {
@@ -38,10 +39,12 @@ namespace NDIViewer
         [SerializeField] private Color connectingColor = new Color(0.9f, 0.7f, 0.1f);
         [SerializeField] private Color disconnectedColor = new Color(0.5f, 0.5f, 0.5f);
         [SerializeField] private Color errorColor = new Color(0.9f, 0.2f, 0.2f);
+        [SerializeField] private Color testPatternColor = new Color(0.9f, 0.6f, 0.1f);
 
         private List<NDISourceDiscovery.DiscoveredSource> _currentSources =
             new List<NDISourceDiscovery.DiscoveredSource>();
         private bool _isConnected;
+        private bool _ndiUnavailable;
 
         private void Awake()
         {
@@ -60,7 +63,10 @@ namespace NDIViewer
         {
             // Subscribe to events
             if (sourceDiscovery != null)
+            {
                 sourceDiscovery.OnSourcesUpdated += OnSourcesUpdated;
+                sourceDiscovery.OnNDILibraryUnavailable += OnNDILibraryUnavailable;
+            }
 
             if (receiver != null)
             {
@@ -74,7 +80,10 @@ namespace NDIViewer
         private void OnDisable()
         {
             if (sourceDiscovery != null)
+            {
                 sourceDiscovery.OnSourcesUpdated -= OnSourcesUpdated;
+                sourceDiscovery.OnNDILibraryUnavailable -= OnNDILibraryUnavailable;
+            }
 
             if (receiver != null)
             {
@@ -89,6 +98,12 @@ namespace NDIViewer
             if (fpsText != null && receiver != null && _isConnected)
             {
                 fpsText.text = $"FPS: {receiver.CurrentFps:F1}";
+            }
+
+            // Check if NDI became unavailable after OnEnable (late initialization)
+            if (!_ndiUnavailable && sourceDiscovery != null && sourceDiscovery.IsNDIUnavailable)
+            {
+                OnNDILibraryUnavailable(sourceDiscovery.NDIUnavailableReason);
             }
         }
 
@@ -121,8 +136,46 @@ namespace NDIViewer
             }
         }
 
+        /// <summary>
+        /// Called when the NDI native library is not available.
+        /// Disables NDI controls and shows test pattern with status message.
+        /// </summary>
+        private void OnNDILibraryUnavailable(string reason)
+        {
+            _ndiUnavailable = true;
+            Debug.LogWarning($"[UI] NDI library unavailable: {reason}");
+
+            // Update UI to reflect NDI unavailability
+            if (statusText != null)
+                statusText.text = "NDI Library Missing";
+            SetIndicatorColor(testPatternColor);
+
+            if (connectButton != null)
+                connectButton.interactable = false;
+            if (connectButtonText != null)
+                connectButtonText.text = "NDI Unavailable";
+
+            if (sourceDropdown != null)
+            {
+                sourceDropdown.ClearOptions();
+                sourceDropdown.AddOptions(new List<string> { "NDI lib not found" });
+                sourceDropdown.interactable = false;
+            }
+
+            if (resolutionText != null)
+                resolutionText.text = $"{TestPatternGenerator.PATTERN_WIDTH}x{TestPatternGenerator.PATTERN_HEIGHT} (test)";
+            if (fpsText != null)
+                fpsText.text = "Test Pattern";
+
+            // Switch video display to test pattern mode
+            if (videoDisplay != null)
+                videoDisplay.ShowTestPattern();
+        }
+
         private void OnConnectButtonClicked()
         {
+            if (_ndiUnavailable) return;
+
             if (_isConnected)
             {
                 // Disconnect

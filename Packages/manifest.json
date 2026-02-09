@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "com.unity.xr.openxr": "1.15.1",
+    "com.unity.xr.openxr.androidxr": "1.2.0",
     "com.unity.xr.management": "4.5.1",
     "com.unity.xr.interaction.toolkit": "3.4.0",
     "com.unity.xr.hands": "1.6.0",
