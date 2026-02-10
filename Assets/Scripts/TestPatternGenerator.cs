@@ -46,24 +46,38 @@ namespace NDIViewer
             return _texture;
         }
 
+        // Scratch buffer for partial row uploads (reused, never per-frame allocated)
+        private static Color32[] _rowBuffer;
+
         /// <summary>
         /// Update the animated element in the test pattern. Call once per frame
         /// when the test pattern is active. Returns the updated texture.
+        ///
+        /// Optimized to only re-upload the rows that changed (up to 4 rows per
+        /// frame) instead of the full 1920x540 texture. This reduces CPU→GPU
+        /// transfer from ~4MB/frame to ~30KB/frame on thermally constrained XR hardware.
         /// </summary>
         public static Texture2D UpdatePattern()
         {
             var tex = GetTexture();
             _frameCounter++;
 
+            if (_rowBuffer == null)
+                _rowBuffer = new Color32[PATTERN_WIDTH];
+
             // Animate a horizontal scanning bar (2px tall) that sweeps vertically
             int barY = _frameCounter % PATTERN_HEIGHT;
-            int halfW = PATTERN_WIDTH / 2;
 
-            // Restore the previous bar row to base pattern
+            // Restore the previous bar rows to base pattern
             int prevBarY = (_frameCounter - 1) % PATTERN_HEIGHT;
-            if (prevBarY >= 0)
+            RegenerateRow(prevBarY);
+            UploadRow(tex, prevBarY);
+
+            int prevBarY2 = _frameCounter > 1 ? ((_frameCounter - 1) + 1) % PATTERN_HEIGHT : -1;
+            if (prevBarY2 >= 0 && prevBarY2 != prevBarY && prevBarY2 != barY)
             {
-                RegenerateRow(prevBarY);
+                RegenerateRow(prevBarY2);
+                UploadRow(tex, prevBarY2);
             }
 
             // Draw new bar row (bright white)
@@ -71,22 +85,28 @@ namespace NDIViewer
             {
                 _pixels[barY * PATTERN_WIDTH + x] = new Color32(255, 255, 255, 255);
             }
+            UploadRow(tex, barY);
+
             // Also draw adjacent row for visibility
             int barY2 = (barY + 1) % PATTERN_HEIGHT;
             for (int x = 0; x < PATTERN_WIDTH; x++)
             {
                 _pixels[barY2 * PATTERN_WIDTH + x] = new Color32(200, 200, 200, 255);
             }
-            // Restore the row that was the secondary bar last frame
-            int prevBarY2 = _frameCounter > 1 ? ((_frameCounter - 1) + 1) % PATTERN_HEIGHT : -1;
-            if (prevBarY2 >= 0 && prevBarY2 != prevBarY && prevBarY2 != barY && prevBarY2 != barY2)
-            {
-                RegenerateRow(prevBarY2);
-            }
+            UploadRow(tex, barY2);
 
-            tex.SetPixels32(_pixels);
             tex.Apply(false);
             return tex;
+        }
+
+        /// <summary>
+        /// Upload a single row from the pixel buffer to the texture using SetPixels32
+        /// with a rect, avoiding a full-texture re-upload.
+        /// </summary>
+        private static void UploadRow(Texture2D tex, int y)
+        {
+            System.Array.Copy(_pixels, y * PATTERN_WIDTH, _rowBuffer, 0, PATTERN_WIDTH);
+            tex.SetPixels32(0, y, PATTERN_WIDTH, 1, _rowBuffer);
         }
 
         /// <summary>

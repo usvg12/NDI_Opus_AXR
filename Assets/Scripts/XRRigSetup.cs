@@ -22,9 +22,6 @@ namespace NDIViewer
         [Tooltip("Maximum ray interaction distance in meters")]
         [SerializeField] private float rayMaxDistance = 10f;
 
-        [Tooltip("Enable eye gaze for UI interaction")]
-        [SerializeField] private bool enableEyeGaze = true;
-
         [Header("Hand Tracking")]
         [Tooltip("Enable hand tracking for grab interactions")]
         [SerializeField] private bool enableHandTracking = true;

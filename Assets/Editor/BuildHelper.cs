@@ -149,13 +149,19 @@ namespace NDIViewer.Editor
             // Release-specific checks
             if (release)
             {
-                // Keystore validation
+                // Keystore validation — hard error for release builds to prevent
+                // accidental debug-signed artifacts reaching distribution workflows.
                 if (string.IsNullOrEmpty(PlayerSettings.Android.keystoreName) ||
                     !File.Exists(PlayerSettings.Android.keystoreName))
                 {
-                    warnings.Add("No Android keystore configured. The APK will be signed " +
-                        "with the debug keystore, which is not suitable for distribution. " +
+                    errors.Add("No Android keystore configured for release build. " +
+                        "A release APK must be signed with a distribution keystore. " +
                         "Set keystore via Edit > Project Settings > Player > Publishing Settings.");
+                }
+                else if (string.IsNullOrEmpty(PlayerSettings.Android.keyaliasName))
+                {
+                    errors.Add("Keystore is configured but no key alias is set. " +
+                        "Set the key alias via Edit > Project Settings > Player > Publishing Settings.");
                 }
 
                 // Version sanity check

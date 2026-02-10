@@ -88,6 +88,30 @@ namespace NDIViewer
             // Passthrough configurator
             var passthroughConfig = cameraGO.AddComponent<PassthroughConfigurator>();
 
+            // ─── 3b. XR Permission Manager ──────────────────────────
+            var permManagerGO = new GameObject("XR Permission Manager");
+            var permManager = permManagerGO.AddComponent<XRPermissionManager>();
+
+            // Wire permission awareness: passthrough depends on CAMERA,
+            // hand tracking depends on HAND_TRACKING. The permission
+            // manager fires OnPermissionsResolved once all requests complete.
+            permManager.OnPermissionsResolved += result =>
+            {
+                if (result.Camera == XRPermissionManager.PermissionStatus.Denied)
+                {
+                    Debug.LogWarning("[Bootstrapper] Camera permission denied — disabling passthrough.");
+                    passthroughConfig.SetPassthroughEnabled(false);
+                }
+                if (result.HandTracking == XRPermissionManager.PermissionStatus.Denied)
+                {
+                    Debug.LogWarning("[Bootstrapper] Hand tracking permission denied — " +
+                        "hand interaction may be unavailable.");
+                }
+            };
+
+            // Kick off runtime permission requests
+            permManager.RequestAllPermissions();
+
             // ─── 4. NDI Managers ──────────────────────────────────────
             var managersGO = new GameObject("NDI Managers");
 
@@ -126,18 +150,16 @@ namespace NDIViewer
             var uiBuilder = uiBuilderGO.AddComponent<UIPanelBuilder>();
             var panelGO = uiBuilder.Build();
 
-            // Create UIController and wire references
+            // Create UIController and wire references via explicit API
             var uiControllerGO = new GameObject("UI Controller");
             var uiController = uiControllerGO.AddComponent<UIController>();
-
-            // Wire UI controller references via reflection (since fields are serialized)
-            WireUIController(uiController, sourceDiscovery, receiver, videoDisplay,
+            uiController.SetReferences(sourceDiscovery, receiver, videoDisplay,
                 windowController, uiBuilder);
 
             // ─── 7. App Controller ────────────────────────────────────
             var appControllerGO = new GameObject("App Controller");
             var appController = appControllerGO.AddComponent<AppController>();
-            WireAppController(appController, sourceDiscovery, receiver, videoDisplay,
+            appController.SetReferences(sourceDiscovery, receiver, videoDisplay,
                 windowController, uiController);
 
             // ─── 8. Diagnostics Overlay ───────────────────────────────
@@ -154,50 +176,5 @@ namespace NDIViewer
             videoDisplay.ShowPlaceholder();
         }
 
-        /// <summary>
-        /// Wire UIController serialized fields via reflection.
-        /// In a full Unity project, these would be set in the Inspector.
-        /// </summary>
-        private void WireUIController(UIController uiCtrl,
-            NDISourceDiscovery discovery, NDIReceiver receiver,
-            NDIVideoDisplay display, SpatialWindowController window,
-            UIPanelBuilder builder)
-        {
-            var type = typeof(UIController);
-            var flags = System.Reflection.BindingFlags.NonPublic |
-                       System.Reflection.BindingFlags.Instance;
-
-            type.GetField("sourceDiscovery", flags)?.SetValue(uiCtrl, discovery);
-            type.GetField("receiver", flags)?.SetValue(uiCtrl, receiver);
-            type.GetField("videoDisplay", flags)?.SetValue(uiCtrl, display);
-            type.GetField("windowController", flags)?.SetValue(uiCtrl, window);
-
-            type.GetField("sourceDropdown", flags)?.SetValue(uiCtrl, builder.SourceDropdown);
-            type.GetField("connectButton", flags)?.SetValue(uiCtrl, builder.ConnectButton);
-            type.GetField("connectButtonText", flags)?.SetValue(uiCtrl, builder.ConnectButtonText);
-            type.GetField("sbsToggle", flags)?.SetValue(uiCtrl, builder.SBSToggle);
-            type.GetField("sbsToggleLabel", flags)?.SetValue(uiCtrl, builder.SBSToggleLabel);
-            type.GetField("statusText", flags)?.SetValue(uiCtrl, builder.StatusText);
-            type.GetField("resolutionText", flags)?.SetValue(uiCtrl, builder.ResolutionText);
-            type.GetField("fpsText", flags)?.SetValue(uiCtrl, builder.FpsText);
-            type.GetField("resetPositionButton", flags)?.SetValue(uiCtrl, builder.ResetPositionButton);
-            type.GetField("connectionIndicator", flags)?.SetValue(uiCtrl, builder.ConnectionIndicator);
-        }
-
-        private void WireAppController(AppController appCtrl,
-            NDISourceDiscovery discovery, NDIReceiver receiver,
-            NDIVideoDisplay display, SpatialWindowController window,
-            UIController uiCtrl)
-        {
-            var type = typeof(AppController);
-            var flags = System.Reflection.BindingFlags.NonPublic |
-                       System.Reflection.BindingFlags.Instance;
-
-            type.GetField("sourceDiscovery", flags)?.SetValue(appCtrl, discovery);
-            type.GetField("receiver", flags)?.SetValue(appCtrl, receiver);
-            type.GetField("videoDisplay", flags)?.SetValue(appCtrl, display);
-            type.GetField("windowController", flags)?.SetValue(appCtrl, window);
-            type.GetField("uiController", flags)?.SetValue(appCtrl, uiCtrl);
-        }
     }
 }

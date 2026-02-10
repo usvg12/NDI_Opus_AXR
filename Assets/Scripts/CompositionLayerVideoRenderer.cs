@@ -25,12 +25,6 @@ namespace NDIViewer
                  "com.google.xr.extensions 1.2.0+. Left disabled until implemented.")]
         [SerializeField] private bool preferCompositionLayer = false;
 
-        [Tooltip("Layer sort order (higher = rendered on top)")]
-        [SerializeField] private int sortOrder = 0;
-
-        [Tooltip("Enable sharp corners (false = use rounded corners matching system style)")]
-        [SerializeField] private bool sharpCorners = true;
-
         private bool _extensionsDetected;
         private bool _initialized;
 
