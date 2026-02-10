@@ -1,6 +1,8 @@
 // Diagnostics Overlay - Lightweight on-screen stats for validating NDI streaming performance
 // Shows FPS, frame timing, dropped frames, upload time, and stride/format diagnostics.
 
+using System.IO;
+using System.Text;
 using UnityEngine;
 using TMPro;
 
@@ -33,6 +35,15 @@ namespace NDIViewer
         private int _lastFormatMismatches;
         private float _lastResScale;
 
+        // StringBuilder for zero-alloc display updates
+        private readonly StringBuilder _sb = new StringBuilder(256);
+
+        // Persistent session log
+        private StreamWriter _logWriter;
+        private float _logTimer;
+        private const float LOG_INTERVAL = 5.0f;
+        private static readonly string LogDir = Path.Combine(Application.persistentDataPath, "logs");
+
         public bool IsVisible => _visible;
 
         public void SetReferences(NDIReceiver receiver, PerformanceMonitor perfMonitor)
@@ -45,6 +56,7 @@ namespace NDIViewer
         {
             BuildOverlay();
             SetVisible(false); // Hidden by default
+            OpenSessionLog();
         }
 
         public void SetVisible(bool visible)
@@ -132,21 +144,73 @@ namespace NDIViewer
             var info = _receiver.LastFrameInfo;
             float dropRate = _lastTotal > 0 ? (float)_lastDropped / _lastTotal * 100f : 0f;
 
-            _statsText.text =
-                $"NDI Diagnostics\n" +
-                $"Recv FPS: {_lastRecvFps:F1}  Render FPS: {_lastRenderFps:F1}\n" +
-                $"Resolution: {info.Width}x{info.Height}  Upload: {_lastUploadMs:F1}ms\n" +
-                $"Frames: {_lastTotal}  Dropped: {_lastDropped} ({dropRate:F1}%)\n" +
-                $"Stride fixups: {_lastStrideFixups}  Format warns: {_lastFormatMismatches}\n" +
-                $"Res scale: {_lastResScale:P0}  State: {_receiver.State}";
+            // Build display string with reusable StringBuilder (zero per-update alloc)
+            _sb.Clear();
+            _sb.Append("NDI Diagnostics\nRecv FPS: ").Append(_lastRecvFps.ToString("F1"))
+               .Append("  Render FPS: ").Append(_lastRenderFps.ToString("F1"))
+               .Append("\nResolution: ").Append(info.Width).Append('x').Append(info.Height)
+               .Append("  Upload: ").Append(_lastUploadMs.ToString("F1")).Append("ms")
+               .Append("\nFrames: ").Append(_lastTotal)
+               .Append("  Dropped: ").Append(_lastDropped)
+               .Append(" (").Append(dropRate.ToString("F1")).Append("%)")
+               .Append("\nStride fixups: ").Append(_lastStrideFixups)
+               .Append("  Format warns: ").Append(_lastFormatMismatches)
+               .Append("\nRes scale: ").Append((_lastResScale * 100f).ToString("F0")).Append('%')
+               .Append("  State: ").Append(_receiver.State);
+            _statsText.SetText(_sb);
 
-            // Also emit structured log every 5 seconds for offline analysis
-            if (Time.frameCount % (int)(5f / Time.unscaledDeltaTime + 1) == 0)
+            // Persistent session log + console log every LOG_INTERVAL seconds
+            _logTimer += UPDATE_INTERVAL;
+            if (_logTimer >= LOG_INTERVAL)
             {
-                Debug.Log($"[NDI Stats] recv_fps={_lastRecvFps:F1} render_fps={_lastRenderFps:F1} " +
-                    $"upload_ms={_lastUploadMs:F2} dropped={_lastDropped}/{_lastTotal} " +
-                    $"stride_fixups={_lastStrideFixups} format_warns={_lastFormatMismatches} " +
-                    $"res_scale={_lastResScale:F2} res={info.Width}x{info.Height}");
+                _logTimer = 0f;
+
+                _sb.Clear();
+                _sb.Append("[NDI Stats] recv_fps=").Append(_lastRecvFps.ToString("F1"))
+                   .Append(" render_fps=").Append(_lastRenderFps.ToString("F1"))
+                   .Append(" upload_ms=").Append(_lastUploadMs.ToString("F2"))
+                   .Append(" dropped=").Append(_lastDropped).Append('/').Append(_lastTotal)
+                   .Append(" stride_fixups=").Append(_lastStrideFixups)
+                   .Append(" format_warns=").Append(_lastFormatMismatches)
+                   .Append(" res_scale=").Append(_lastResScale.ToString("F2"))
+                   .Append(" res=").Append(info.Width).Append('x').Append(info.Height);
+
+                string logLine = _sb.ToString();
+                Debug.Log(logLine);
+
+                if (_logWriter != null)
+                {
+                    _logWriter.Write(Time.unscaledTime.ToString("F1"));
+                    _logWriter.Write(',');
+                    _logWriter.WriteLine(logLine);
+                }
+            }
+        }
+
+        private void OpenSessionLog()
+        {
+            try
+            {
+                Directory.CreateDirectory(LogDir);
+                string filename = $"ndi_session_{System.DateTime.Now:yyyyMMdd_HHmmss}.csv";
+                string path = Path.Combine(LogDir, filename);
+                _logWriter = new StreamWriter(path, false, Encoding.UTF8) { AutoFlush = true };
+                _logWriter.WriteLine("time_s,stats");
+                Debug.Log($"[DiagnosticsOverlay] Session log: {path}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[DiagnosticsOverlay] Could not open session log: {ex.Message}");
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_logWriter != null)
+            {
+                _logWriter.Flush();
+                _logWriter.Dispose();
+                _logWriter = null;
             }
         }
     }
