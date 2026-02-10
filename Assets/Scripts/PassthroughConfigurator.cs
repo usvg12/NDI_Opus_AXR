@@ -33,9 +33,14 @@ namespace NDIViewer
 
         private Camera _xrCamera;
         private bool _passthroughActive;
+        private bool _manifestFallback;
         private XRDisplaySubsystem _activeDisplay;
 
+        /// <summary>Whether passthrough is confirmed active via subsystem or manifest fallback.</summary>
         public bool IsPassthroughActive => _passthroughActive;
+
+        /// <summary>True when passthrough relies on AndroidManifest rather than subsystem API.</summary>
+        public bool IsManifestFallback => _manifestFallback;
 
         private void Start()
         {
@@ -76,18 +81,17 @@ namespace NDIViewer
                 _activeDisplay = display;
                 Debug.Log($"[Passthrough] XR Display subsystem found: {display.SubsystemDescriptor.id}");
 
-                // Query supported blend modes from the runtime
-                var supportedModes = new List<XRDisplaySubsystem.TextureLayout>();
-
-                // Try to set the preferred blend mode
-                // On Android XR, reprojectionMode controls environment blend:
+                // On Android XR, reprojectionMode maps to environment blend mode:
                 //   0 = Opaque (fully virtual)
                 //   1 = Additive (see-through additive)
                 //   2 = AlphaBlend (passthrough with alpha compositing)
+                // This cast is intentional — EnvironmentBlendMode values are aligned
+                // with XRDisplaySubsystem.ReprojectionMode integer values on Android XR.
                 try
                 {
-                    display.reprojectionMode = (XRDisplaySubsystem.ReprojectionMode)desiredBlendMode;
+                    display.reprojectionMode = (XRDisplaySubsystem.ReprojectionMode)(int)desiredBlendMode;
                     blendModeSet = true;
+                    _passthroughActive = true;
                     Debug.Log($"[Passthrough] Set blend mode to {desiredBlendMode} via XR Display subsystem.");
                 }
                 catch (System.Exception e)
@@ -95,25 +99,22 @@ namespace NDIViewer
                     Debug.LogWarning($"[Passthrough] Could not set blend mode via subsystem: {e.Message}");
                 }
 
-                _passthroughActive = true;
                 break;
-            }
-
-            if (!_passthroughActive)
-            {
-                Debug.LogWarning("[Passthrough] No running XR display subsystem found. " +
-                    "Passthrough will rely on AndroidManifest environment.blend.mode = ALPHA_BLEND.");
-                // The AndroidManifest meta-data com.android.xr.application.environment.blend.mode
-                // is the fallback mechanism on Android XR
-                _passthroughActive = true;
             }
 
             if (!blendModeSet)
             {
-                Debug.Log("[Passthrough] Blend mode set via manifest config (not subsystem API).");
+                // No running subsystem accepted the blend mode — fall back to manifest.
+                // The AndroidManifest meta-data com.android.xr.application.environment.blend.mode
+                // is the fallback mechanism on Android XR.
+                _manifestFallback = true;
+                Debug.LogWarning("[Passthrough] No running XR display subsystem accepted blend mode. " +
+                    "Passthrough relies on AndroidManifest environment.blend.mode = ALPHA_BLEND. " +
+                    "Actual passthrough state cannot be confirmed until the device compositor runs.");
             }
 
-            Debug.Log("[Passthrough] Configured for mixed reality mode.");
+            Debug.Log($"[Passthrough] Configuration complete. " +
+                $"Active={_passthroughActive}, ManifestFallback={_manifestFallback}");
         }
 
         /// <summary>Toggle passthrough on/off (switch between MR and VR mode).</summary>
