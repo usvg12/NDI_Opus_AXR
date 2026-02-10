@@ -44,6 +44,7 @@ namespace NDIViewer
         private List<NDISourceDiscovery.DiscoveredSource> _currentSources =
             new List<NDISourceDiscovery.DiscoveredSource>();
         private bool _isConnected;
+        private bool _isConnecting;
         private bool _ndiUnavailable;
 
         private void Awake()
@@ -118,8 +119,10 @@ namespace NDIViewer
         private void OnConnectionStateChanged(NDIReceiver.ConnectionState state)
         {
             _isConnected = state == NDIReceiver.ConnectionState.Connected;
+            _isConnecting = state == NDIReceiver.ConnectionState.Connecting;
             UpdateStatusDisplay(state);
             UpdateConnectButton(state);
+            UpdateDropdownInteractable();
         }
 
         private void OnVideoFrameReceived(Texture2D texture, NDIReceiver.FrameInfo info)
@@ -174,7 +177,7 @@ namespace NDIViewer
 
         private void OnConnectButtonClicked()
         {
-            if (_ndiUnavailable) return;
+            if (_ndiUnavailable || _isConnecting) return;
 
             if (_isConnected)
             {
@@ -235,7 +238,7 @@ namespace NDIViewer
                 return;
             }
 
-            sourceDropdown.interactable = true;
+            sourceDropdown.interactable = !_isConnected && !_isConnecting;
             var options = new List<string>();
             int newSelection = 0;
 
@@ -285,10 +288,23 @@ namespace NDIViewer
         {
             if (connectButtonText == null) return;
 
-            bool isActive = state == NDIReceiver.ConnectionState.Connected ||
-                           state == NDIReceiver.ConnectionState.Connecting;
+            bool isConnecting = state == NDIReceiver.ConnectionState.Connecting;
+            bool isActive = state == NDIReceiver.ConnectionState.Connected || isConnecting;
 
-            connectButtonText.text = isActive ? "Disconnect" : "Connect";
+            connectButtonText.text = isConnecting ? "Connecting..." :
+                                     isActive ? "Disconnect" : "Connect";
+
+            if (connectButton != null)
+                connectButton.interactable = !isConnecting && !_ndiUnavailable &&
+                    (isActive || _currentSources.Count > 0);
+        }
+
+        private void UpdateDropdownInteractable()
+        {
+            if (sourceDropdown == null || _ndiUnavailable) return;
+
+            sourceDropdown.interactable = !_isConnected && !_isConnecting &&
+                                          _currentSources.Count > 0;
         }
 
         private void SetStatusError(string message)
