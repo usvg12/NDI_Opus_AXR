@@ -146,11 +146,9 @@ namespace NDIViewer
             diagnostics.SetReferences(receiver, performanceMonitor);
             diagnostics.Initialize();
 
-            // ─── 9. Wire receiver events ──────────────────────────────
-            receiver.OnVideoFrameReceived += (texture, info) =>
-            {
-                videoDisplay.UpdateVideoFrame(texture, info);
-            };
+            // ─── 9. Initial state ─────────────────────────────────────
+            // Video frame forwarding is handled by UIController.OnVideoFrameReceived,
+            // which also updates the resolution display. No additional subscription needed.
 
             // Show placeholder initially
             videoDisplay.ShowPlaceholder();

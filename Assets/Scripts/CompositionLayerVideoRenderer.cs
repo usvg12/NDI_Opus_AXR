@@ -1,33 +1,29 @@
-// Composition Layer Video Renderer - Renders NDI video as an OpenXR composition layer
-// Uses OpenXR composition layers for sharper video output, bypassing lens distortion
-// correction that degrades video quality when rendered as a standard scene quad.
+// Composition Layer Video Renderer - Future OpenXR composition layer support
+// Will use OpenXR composition layers for sharper video output when implemented.
+//
+// STATUS: Not yet implemented. The composition layer submission path requires
+// the Android XR Extensions package (com.google.xr.extensions 1.2.0+) and
+// additional OpenXR swapchain integration. This component is disabled by default
+// and will report its status honestly at runtime.
 //
 // Reference: XR_ANDROID_composition_layer_passthrough_mesh
 // https://developer.android.com/develop/xr/openxr/extensions/XR_ANDROID_composition_layer_passthrough_mesh
-//
-// This component is an optional enhancement. When the Android XR Extensions package
-// (com.google.xr.extensions 1.2.0+) is available, video frames can be submitted as
-// composition layers for maximum visual fidelity. Falls back to standard quad rendering
-// if composition layers are unavailable.
 
 using UnityEngine;
 
 namespace NDIViewer
 {
     /// <summary>
-    /// Optional component that enables rendering NDI video frames as OpenXR
-    /// composition layers instead of standard scene geometry. This provides
-    /// sharper video output by bypassing the intermediate render target and
-    /// lens distortion correction pass.
-    ///
-    /// Requires the Android XR Extensions package (com.google.xr.extensions).
-    /// When unavailable, NDIVideoDisplay handles rendering via standard quad.
+    /// Placeholder for future OpenXR composition layer rendering of NDI video.
+    /// Currently disabled by default — the submission path is not yet implemented.
+    /// All video rendering goes through NDIVideoDisplay's standard quad path.
     /// </summary>
     public class CompositionLayerVideoRenderer : MonoBehaviour
     {
         [Header("Composition Layer Settings")]
-        [Tooltip("Use composition layer rendering when available for sharper video")]
-        [SerializeField] private bool preferCompositionLayer = true;
+        [Tooltip("Not yet implemented — composition layer submission requires " +
+                 "com.google.xr.extensions 1.2.0+. Left disabled until implemented.")]
+        [SerializeField] private bool preferCompositionLayer = false;
 
         [Tooltip("Layer sort order (higher = rendered on top)")]
         [SerializeField] private int sortOrder = 0;
@@ -35,109 +31,86 @@ namespace NDIViewer
         [Tooltip("Enable sharp corners (false = use rounded corners matching system style)")]
         [SerializeField] private bool sharpCorners = true;
 
-        private bool _compositionLayerAvailable;
+        private bool _extensionsDetected;
         private bool _initialized;
-        private NDIVideoDisplay _videoDisplay;
-        private SpatialWindowController _windowController;
 
-        /// <summary>Whether composition layer rendering is active.</summary>
-        public bool IsCompositionLayerActive => _compositionLayerAvailable && preferCompositionLayer;
+        /// <summary>
+        /// Whether composition layer rendering is active.
+        /// Always false until the submission path is implemented.
+        /// </summary>
+        public bool IsCompositionLayerActive => false;
 
-        private void Awake()
-        {
-            _videoDisplay = GetComponent<NDIVideoDisplay>();
-            _windowController = GetComponent<SpatialWindowController>();
-        }
+        /// <summary>Whether the Android XR Extensions assembly was detected.</summary>
+        public bool ExtensionsDetected => _extensionsDetected;
 
         private void Start()
         {
             DetectCompositionLayerSupport();
             _initialized = true;
+
+            if (preferCompositionLayer)
+            {
+                Debug.LogWarning("[CompositionLayer] preferCompositionLayer is enabled " +
+                    "but composition layer submission is not yet implemented. " +
+                    "Falling back to standard quad rendering via NDIVideoDisplay.");
+            }
         }
 
-        /// <summary>
-        /// Detect whether the Android XR Extensions composition layer API is available.
-        /// The XR_ANDROID_composition_layer_passthrough_mesh extension enables rendering
-        /// arbitrary mesh geometry (including video quads) as composition layers that
-        /// the XR runtime composites directly, providing:
-        ///   - No lens distortion artifacts on video content
-        ///   - Direct scanout path for lower latency
-        ///   - Higher effective resolution (no intermediate render target)
-        /// </summary>
         private void DetectCompositionLayerSupport()
         {
-            _compositionLayerAvailable = false;
+            _extensionsDetected = false;
 
-            // Check if the Android XR Extensions assembly is loaded
-            // This indicates com.google.xr.extensions package is installed
-            var extensionsAssembly = System.AppDomain.CurrentDomain.GetAssemblies();
-            foreach (var assembly in extensionsAssembly)
+            var assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+            foreach (var assembly in assemblies)
             {
                 if (assembly.FullName.Contains("Google.XR.Extensions"))
                 {
-                    _compositionLayerAvailable = true;
-                    Debug.Log("[CompositionLayer] Android XR Extensions detected. " +
-                        "Composition layer rendering available.");
+                    _extensionsDetected = true;
+                    Debug.Log("[CompositionLayer] Android XR Extensions assembly detected. " +
+                        "Composition layer submission is not yet implemented — " +
+                        "using standard quad rendering.");
                     break;
                 }
             }
 
-            if (!_compositionLayerAvailable)
+            if (!_extensionsDetected)
             {
                 Debug.Log("[CompositionLayer] Android XR Extensions not found. " +
-                    "Using standard quad rendering. Install com.google.xr.extensions " +
-                    "for composition layer support.");
+                    "Using standard quad rendering.");
             }
         }
 
         /// <summary>
-        /// Submit a video texture as a composition layer quad.
-        /// Called each frame when composition layer mode is active.
-        ///
-        /// When the Android XR Extensions package is installed, this method
-        /// creates an XrCompositionLayerQuad that the OpenXR runtime composites
-        /// directly into the final output, bypassing the standard render pipeline
-        /// for this specific content.
-        ///
-        /// The passthrough mesh extension (XR_ANDROID_composition_layer_passthrough_mesh)
-        /// can also be used to render the video onto arbitrary mesh geometry that
-        /// integrates with the passthrough environment.
+        /// Placeholder — composition layer submission is not yet implemented.
+        /// When implemented, this will create an XrCompositionLayerQuad that the
+        /// OpenXR runtime composites directly, bypassing the standard render pipeline.
         /// </summary>
-        /// <remarks>
-        /// NOT YET IMPLEMENTED — this is a placeholder for future composition layer support.
-        /// When implemented, the OpenXR calls would be:
-        ///   1. xrCreateSwapchain for the video texture
-        ///   2. xrAcquireSwapchainImage / xrReleaseSwapchainImage per frame
-        ///   3. XrCompositionLayerQuad submitted in xrEndFrame
-        /// Requires com.google.xr.extensions 1.2.0+ with XR_ANDROID_composition_layer_passthrough_mesh.
-        /// Until then, NDIVideoDisplay handles rendering via standard quad.
-        /// </remarks>
         public void SubmitVideoLayer(Texture2D videoTexture)
         {
-            // No-op: composition layer submission is not yet implemented.
-            // Falls back to standard quad rendering via NDIVideoDisplay.
+            // Not yet implemented. Requires:
+            //   1. xrCreateSwapchain for the video texture
+            //   2. xrAcquireSwapchainImage / xrReleaseSwapchainImage per frame
+            //   3. XrCompositionLayerQuad submitted in xrEndFrame
+            // Until then, NDIVideoDisplay handles all rendering via standard quad.
         }
 
         /// <summary>
-        /// Toggle between composition layer and standard quad rendering.
+        /// Toggle composition layer preference. Has no runtime effect until
+        /// the submission path is implemented.
         /// </summary>
         public void SetCompositionLayerEnabled(bool enabled)
         {
-            preferCompositionLayer = enabled && _compositionLayerAvailable;
+            preferCompositionLayer = enabled;
 
-            if (_videoDisplay != null)
+            if (enabled)
             {
-                // When switching away from composition layer, ensure the standard
-                // quad renderer is active and showing the current frame
-                var meshRenderer = GetComponent<MeshRenderer>();
-                if (meshRenderer != null)
-                {
-                    meshRenderer.enabled = !IsCompositionLayerActive;
-                }
+                Debug.LogWarning("[CompositionLayer] Composition layer submission is " +
+                    "not yet implemented. Rendering continues via standard quad.");
             }
-
-            Debug.Log($"[CompositionLayer] Rendering mode: " +
-                $"{(IsCompositionLayerActive ? "Composition Layer" : "Standard Quad")}");
+            else
+            {
+                Debug.Log("[CompositionLayer] Composition layer preference disabled.");
+            }
         }
     }
 }

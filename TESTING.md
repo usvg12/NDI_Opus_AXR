@@ -114,11 +114,11 @@ public class PerformanceMonitorTests
 Unity -batchmode -quit \
   -executeMethod NDIViewer.Editor.BuildHelper.BuildDebugAPK
 
-# Install on headset
-adb install -r Builds/NDIXRViewer.apk
+# Install on headset (debug build)
+adb install -r Builds/NDI_XR_Viewer_debug.apk
 
 # Launch
-adb shell am start -n com.example.ndixrviewer/.MainActivity
+adb shell am start -n com.ndiviewer.androidxr/.MainActivity
 ```
 
 ### Monitor Logs
@@ -220,7 +220,7 @@ adb logcat -s Unity | grep "\[Performance\]"
 adb logcat -s Unity | grep "GC_"
 
 # Monitor memory
-adb shell dumpsys meminfo com.example.ndixrviewer
+adb shell dumpsys meminfo com.ndiviewer.androidxr
 ```
 
 ### Performance Targets
