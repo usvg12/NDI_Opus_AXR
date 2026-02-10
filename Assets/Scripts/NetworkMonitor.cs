@@ -3,6 +3,7 @@
 // NDI operates over LAN multicast/mDNS and does not require internet access.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -209,6 +210,19 @@ namespace NDIViewer
             return false;
         }
 
+        /// <summary>
+        /// Pure logic: find the first source whose Name matches the target.
+        /// Returns null if no match or if the list is empty.
+        /// </summary>
+        internal static NDISourceDiscovery.DiscoveredSource FindReconnectMatch(
+            List<NDISourceDiscovery.DiscoveredSource> sources, string targetName)
+        {
+            if (sources == null || string.IsNullOrEmpty(targetName))
+                return null;
+
+            return sources.FirstOrDefault(s => s.Name == targetName);
+        }
+
         private void TryReconnect()
         {
             _reconnectTimer += Time.unscaledDeltaTime;
@@ -226,8 +240,7 @@ namespace NDIViewer
             if (_discovery == null || _discovery.CurrentSources == null || _discovery.CurrentSources.Count == 0)
                 return;
 
-            var match = _discovery.CurrentSources
-                .FirstOrDefault(s => s.Name == _reconnectSourceName);
+            var match = FindReconnectMatch(_discovery.CurrentSources, _reconnectSourceName);
 
             if (match != null)
             {

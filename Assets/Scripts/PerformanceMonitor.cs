@@ -41,6 +41,37 @@ namespace NDIViewer
         public float ResolutionScale => _currentResolutionScale;
         public bool IsQualityReduced => _qualityReduced;
 
+        /// <summary>
+        /// Pure logic: compute the new resolution scale after a quality reduction step.
+        /// </summary>
+        internal static float ComputeReducedScale(float currentScale, float minScale)
+        {
+            return Mathf.Max(currentScale - 0.1f, minScale);
+        }
+
+        /// <summary>
+        /// Pure logic: compute the new resolution scale after a quality restore step.
+        /// </summary>
+        internal static float ComputeRestoredScale(float currentScale)
+        {
+            return Mathf.Min(currentScale + 0.05f, 1.0f);
+        }
+
+        /// <summary>
+        /// Pure logic: determine whether quality should be reduced, restored, or held.
+        /// Returns -1 for reduce, +1 for restore, 0 for hold.
+        /// </summary>
+        internal static int EvaluateScalingDirection(
+            float fps, float minFpsThreshold, float restoreFpsThreshold,
+            bool qualityCurrentlyReduced)
+        {
+            if (fps < minFpsThreshold)
+                return -1;
+            if (fps > restoreFpsThreshold && qualityCurrentlyReduced)
+                return 1;
+            return 0;
+        }
+
         private void Update()
         {
             // Calculate FPS
