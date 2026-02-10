@@ -70,6 +70,27 @@ namespace NDIViewer
             }
 
             ValidateReferences();
+            Initialize();
+        }
+
+        private void Initialize()
+        {
+            _initialized = true;
+
+            // Wire button/toggle events (safe now that references are assigned)
+            if (connectButton != null)
+                connectButton.onClick.AddListener(OnConnectButtonClicked);
+            if (sbsToggle != null)
+                sbsToggle.onValueChanged.AddListener(OnSBSToggleChanged);
+            if (resetPositionButton != null)
+                resetPositionButton.onClick.AddListener(OnResetPositionClicked);
+
+            // Subscribe to component events and refresh display
+            if (isActiveAndEnabled)
+            {
+                SubscribeToEvents();
+                UpdateUI();
+            }
         }
 
         private void ValidateReferences()
@@ -88,23 +109,21 @@ namespace NDIViewer
         private bool _isConnecting;
         private bool _ndiUnavailable;
         private string _previousSelectedUrl; // Track by URL for unique source matching
-
-        private void Awake()
-        {
-            // Wire up button/toggle events
-            if (connectButton != null)
-                connectButton.onClick.AddListener(OnConnectButtonClicked);
-
-            if (sbsToggle != null)
-                sbsToggle.onValueChanged.AddListener(OnSBSToggleChanged);
-
-            if (resetPositionButton != null)
-                resetPositionButton.onClick.AddListener(OnResetPositionClicked);
-        }
+        private bool _initialized;
 
         private void OnEnable()
         {
-            // Subscribe to events
+            // Guard: when built at runtime via AddComponent, OnEnable fires
+            // before SetReferences has assigned buttons/event sources.
+            // Subscriptions are established in Initialize() instead.
+            if (!_initialized) return;
+
+            SubscribeToEvents();
+            UpdateUI();
+        }
+
+        private void SubscribeToEvents()
+        {
             if (sourceDiscovery != null)
             {
                 sourceDiscovery.OnSourcesUpdated += OnSourcesUpdated;
@@ -116,8 +135,6 @@ namespace NDIViewer
                 receiver.OnConnectionStateChanged += OnConnectionStateChanged;
                 receiver.OnVideoFrameReceived += OnVideoFrameReceived;
             }
-
-            UpdateUI();
         }
 
         private void OnDisable()
@@ -262,6 +279,24 @@ namespace NDIViewer
 
         // ─── UI Update Methods ────────────────────────────────────────
 
+        /// <summary>
+        /// Pure logic: given a list of sources and a previously selected URL,
+        /// returns the index that should be selected (0 if no match).
+        /// </summary>
+        internal static int FindSelectionIndexByUrl(
+            List<NDISourceDiscovery.DiscoveredSource> sources, string previousUrl)
+        {
+            if (sources == null || string.IsNullOrEmpty(previousUrl))
+                return 0;
+
+            for (int i = 0; i < sources.Count; i++)
+            {
+                if (sources[i].Url == previousUrl)
+                    return i;
+            }
+            return 0;
+        }
+
         private void UpdateSourceDropdown()
         {
             if (sourceDropdown == null) return;
@@ -282,14 +317,11 @@ namespace NDIViewer
 
             sourceDropdown.interactable = !_isConnected && !_isConnecting;
             var options = new List<string>();
-            int newSelection = 0;
+            int newSelection = FindSelectionIndexByUrl(_currentSources, _previousSelectedUrl);
 
             for (int i = 0; i < _currentSources.Count; i++)
             {
                 options.Add(_currentSources[i].Name);
-                // Match on URL for uniqueness (two sources can share a name)
-                if (_currentSources[i].Url == _previousSelectedUrl)
-                    newSelection = i;
             }
 
             sourceDropdown.AddOptions(options);
