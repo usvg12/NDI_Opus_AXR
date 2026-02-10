@@ -18,6 +18,8 @@ jobs:
           echo "=== Checking required files ==="
           for f in \
             ProjectSettings/ProjectVersion.txt \
+            ProjectSettings/EditorBuildSettings.asset \
+            Assets/Scenes/Boot.unity \
             Assets/Plugins/Android/AndroidManifest.xml \
             Assets/Plugins/Android/mainTemplate.gradle \
             Assets/Scripts/AppController.cs \

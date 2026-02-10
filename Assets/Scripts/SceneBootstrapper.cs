@@ -9,8 +9,10 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 namespace NDIViewer
 {
     /// <summary>
-    /// Creates the entire scene hierarchy at runtime. Attach this to an empty
-    /// GameObject in a minimal scene. It will build:
+    /// Creates the entire scene hierarchy at runtime. Self-launches via
+    /// RuntimeInitializeOnLoadMethod so the boot scene can be completely empty
+    /// (no serialized script references or meta-file GUIDs required).
+    /// Builds:
     /// - XR Origin with camera and hand interactors
     /// - NDI video display window (spatial, grabbable)
     /// - Floating UI control panel
@@ -19,12 +21,37 @@ namespace NDIViewer
     /// </summary>
     public class SceneBootstrapper : MonoBehaviour
     {
+        private static bool s_initialized;
+
         [Header("Optional Overrides")]
         [Tooltip("Custom SBS shader (auto-found if null)")]
         [SerializeField] private Shader sbsShader;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void AutoBootstrap()
+        {
+            if (s_initialized)
+                return;
+
+            // If a SceneBootstrapper already exists in the scene (e.g. placed
+            // manually), let its Awake() handle initialization instead.
+            if (FindFirstObjectByType<SceneBootstrapper>() != null)
+                return;
+
+            var go = new GameObject("Scene Bootstrapper");
+            go.AddComponent<SceneBootstrapper>();
+        }
+
         private void Awake()
         {
+            if (s_initialized)
+            {
+                Debug.LogWarning("[Bootstrapper] Already initialized — skipping duplicate.");
+                Destroy(gameObject);
+                return;
+            }
+
+            s_initialized = true;
             Debug.Log("[Bootstrapper] Building NDI XR Viewer scene...");
             BuildScene();
             Debug.Log("[Bootstrapper] Scene build complete.");
