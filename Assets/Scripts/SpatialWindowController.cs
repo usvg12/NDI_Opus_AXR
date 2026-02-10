@@ -69,6 +69,10 @@ namespace NDIViewer
         private void Start()
         {
             _cameraTransform = Camera.main?.transform;
+            if (_cameraTransform == null)
+                Debug.LogWarning("[SpatialWindow] Camera.main not found at Start. " +
+                    "Window positioning deferred until camera becomes available.");
+
             _currentWidth = defaultWidth;
 
             // Position window at default location

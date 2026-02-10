@@ -103,26 +103,19 @@ namespace NDIViewer
         /// can also be used to render the video onto arbitrary mesh geometry that
         /// integrates with the passthrough environment.
         /// </summary>
+        /// <remarks>
+        /// NOT YET IMPLEMENTED — this is a placeholder for future composition layer support.
+        /// When implemented, the OpenXR calls would be:
+        ///   1. xrCreateSwapchain for the video texture
+        ///   2. xrAcquireSwapchainImage / xrReleaseSwapchainImage per frame
+        ///   3. XrCompositionLayerQuad submitted in xrEndFrame
+        /// Requires com.google.xr.extensions 1.2.0+ with XR_ANDROID_composition_layer_passthrough_mesh.
+        /// Until then, NDIVideoDisplay handles rendering via standard quad.
+        /// </remarks>
         public void SubmitVideoLayer(Texture2D videoTexture)
         {
-            if (!_compositionLayerAvailable || !preferCompositionLayer) return;
-            if (videoTexture == null) return;
-
-            // When com.google.xr.extensions is available, the composition layer
-            // submission is handled through the XR Composition Layer feature
-            // configured in OpenXR settings. The layer uses the transform of this
-            // GameObject for positioning in world space.
-            //
-            // The actual OpenXR calls are:
-            //   1. xrCreateSwapchain - for the video texture
-            //   2. xrAcquireSwapchainImage / xrReleaseSwapchainImage - per frame
-            //   3. XrCompositionLayerQuad submitted in xrEndFrame
-            //
-            // With XR_ANDROID_composition_layer_passthrough_mesh:
-            //   - Video can be rendered onto a mesh that occludes/integrates with
-            //     the passthrough environment
-            //   - The mesh vertices define the spatial extent of the video surface
-            //   - The runtime handles proper depth compositing with passthrough
+            // No-op: composition layer submission is not yet implemented.
+            // Falls back to standard quad rendering via NDIVideoDisplay.
         }
 
         /// <summary>

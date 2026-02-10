@@ -76,8 +76,9 @@ namespace NDIViewer
         private volatile ConnectionState _pendingState;
 
         // Stride-stripping scratch buffer (reused, never allocated per-frame
-        // unless dimensions change)
+        // unless dimensions change). Capped to prevent unbounded growth.
         private byte[] _strideScratch;
+        private const int MaxScratchBufferBytes = 33_177_600; // ~4K RGBA with stride padding (3840*2160*4)
 
         // Performance tracking
         private float _fpsTimer;
@@ -205,6 +206,7 @@ namespace NDIViewer
         private void CaptureLoop()
         {
             bool firstFrame = true;
+            int consecutiveErrors = 0;
 
             while (_capturing)
             {
@@ -259,9 +261,17 @@ namespace NDIViewer
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[NDI Receiver] Capture error: {ex.Message}");
-                    Thread.Sleep(100);
+                    consecutiveErrors++;
+                    int backoffMs = Math.Min(20 * (1 << Math.Min(consecutiveErrors - 1, 6)), 2000);
+                    Debug.LogError($"[NDI Receiver] Capture error (#{consecutiveErrors}, " +
+                        $"backoff {backoffMs}ms): {ex.Message}");
+                    Thread.Sleep(backoffMs);
+                    continue;
                 }
+
+                // Reset error backoff on successful iteration
+                if (consecutiveErrors > 0)
+                    consecutiveErrors = 0;
             }
         }
 
@@ -330,6 +340,13 @@ namespace NDIViewer
                 // copy entire native buffer then compact in managed code.
                 StrideFixups++;
                 int nativeByteCount = nativeStride * frame.height;
+
+                if (nativeByteCount > MaxScratchBufferBytes)
+                {
+                    Debug.LogWarning($"[NDI Receiver] Stride scratch buffer request ({nativeByteCount} bytes) " +
+                        $"exceeds cap ({MaxScratchBufferBytes} bytes). Frame skipped.");
+                    return;
+                }
 
                 if (_strideScratch == null || _strideScratch.Length < nativeByteCount)
                 {
