@@ -145,7 +145,7 @@ namespace NDIViewer
             }
 
             // Check if the source has reappeared in the discovery list
-            if (_discovery.CurrentSources == null || _discovery.CurrentSources.Count == 0)
+            if (_discovery == null || _discovery.CurrentSources == null || _discovery.CurrentSources.Count == 0)
                 return;
 
             var match = _discovery.CurrentSources

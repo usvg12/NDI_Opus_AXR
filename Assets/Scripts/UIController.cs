@@ -46,6 +46,7 @@ namespace NDIViewer
         private bool _isConnected;
         private bool _isConnecting;
         private bool _ndiUnavailable;
+        private string _previousSelectedUrl; // Track by URL for unique source matching
 
         private void Awake()
         {
@@ -224,10 +225,10 @@ namespace NDIViewer
         {
             if (sourceDropdown == null) return;
 
+            // Remember current selection by URL (unique) for stable re-selection
             int previousSelection = sourceDropdown.value;
-            string previousName = sourceDropdown.options.Count > previousSelection
-                ? sourceDropdown.options[previousSelection].text
-                : "";
+            if (previousSelection >= 0 && previousSelection < _currentSources.Count)
+                _previousSelectedUrl = _currentSources[previousSelection].Url;
 
             sourceDropdown.ClearOptions();
 
@@ -245,8 +246,8 @@ namespace NDIViewer
             for (int i = 0; i < _currentSources.Count; i++)
             {
                 options.Add(_currentSources[i].Name);
-                // Maintain previous selection if source still exists
-                if (_currentSources[i].Name == previousName)
+                // Match on URL for uniqueness (two sources can share a name)
+                if (_currentSources[i].Url == _previousSelectedUrl)
                     newSelection = i;
             }
 
