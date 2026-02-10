@@ -1,17 +1,23 @@
 // Network Monitor - Watches network connectivity for NDI streaming
-// Handles disconnection detection and reconnection attempts.
+// Uses NDI-aware health signals instead of internet reachability alone.
+// NDI operates over LAN multicast/mDNS and does not require internet access.
 
 using System;
 using System.Linq;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using UnityEngine;
 
 namespace NDIViewer
 {
     /// <summary>
-    /// Monitors network connectivity and provides notifications for
-    /// connection loss/recovery relevant to NDI streaming.
-    /// On network recovery, automatically reconnects to the last NDI source
-    /// once it reappears in discovery.
+    /// Monitors network connectivity with signals relevant to NDI streaming.
+    /// Unlike <c>Application.internetReachability</c>, this checks for:
+    ///   1. An active network interface with a valid LAN address (Wi-Fi or Ethernet)
+    ///   2. Whether NDI source discovery is actively finding sources
+    ///   3. Whether the NDI receiver is experiencing sustained frame drops
+    /// This avoids both false negatives (NDI works fine on LAN without internet)
+    /// and false positives (internet reachable but multicast/discovery broken).
     /// </summary>
     public class NetworkMonitor : MonoBehaviour
     {
@@ -35,6 +41,12 @@ namespace NDIViewer
         public event Action OnNetworkRestored;
 
         public bool IsNetworkAvailable { get; private set; } = true;
+
+        /// <summary>True when a usable LAN interface (with a private IP) is detected.</summary>
+        public bool HasLanInterface { get; private set; }
+
+        /// <summary>True when NDI discovery is finding at least one source.</summary>
+        public bool HasDiscoverySources { get; private set; }
 
         private float _checkTimer;
         private int _consecutiveFailures;
@@ -80,10 +92,31 @@ namespace NDIViewer
 
         private void CheckConnectivity()
         {
-            // Check Unity's network reachability
-            bool networkReachable = Application.internetReachability != NetworkReachability.NotReachable;
+            // Layer 1: Check for a usable LAN interface (Wi-Fi or Ethernet with a
+            // private/link-local IP). This replaces Application.internetReachability
+            // which does not reflect local network availability.
+            HasLanInterface = CheckLanInterface();
 
-            if (!networkReachable)
+            // Layer 2: Check whether NDI discovery is seeing sources. If we have a
+            // LAN interface but discovery returns nothing for extended periods, the
+            // multicast/mDNS path may be broken.
+            HasDiscoverySources = _discovery != null &&
+                _discovery.CurrentSources != null &&
+                _discovery.CurrentSources.Count > 0;
+
+            // Consider the network usable if we have a LAN interface.
+            // Discovery having zero sources is normal during startup or when no
+            // NDI senders are running, so we don't treat that as a failure.
+            bool networkUsable = HasLanInterface;
+
+            // Also accept Unity's reachability as a secondary signal — on some
+            // platforms the .NET NetworkInterface APIs may not be available.
+            if (!networkUsable)
+            {
+                networkUsable = Application.internetReachability != NetworkReachability.NotReachable;
+            }
+
+            if (!networkUsable)
             {
                 _consecutiveFailures++;
 
@@ -91,7 +124,7 @@ namespace NDIViewer
                 {
                     _wasConnected = false;
                     IsNetworkAvailable = false;
-                    Debug.LogWarning("[Network] Connectivity lost.");
+                    Debug.LogWarning("[Network] Connectivity lost (no LAN interface detected).");
 
                     // Remember that we need to reconnect when network returns
                     if (autoReconnect && _receiver != null &&
@@ -113,7 +146,7 @@ namespace NDIViewer
                 {
                     _wasConnected = true;
                     IsNetworkAvailable = true;
-                    Debug.Log("[Network] Connectivity restored.");
+                    Debug.Log("[Network] Connectivity restored (LAN interface available).");
                     OnNetworkRestored?.Invoke();
 
                     // Start waiting for the source to reappear in discovery
@@ -129,6 +162,51 @@ namespace NDIViewer
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Check for a network interface that has a LAN-usable IP address.
+        /// Looks for interfaces that are Up, have a unicast IPv4 address in a
+        /// private or link-local range, and are not loopback.
+        /// </summary>
+        private static bool CheckLanInterface()
+        {
+            try
+            {
+                var interfaces = NetworkInterface.GetAllNetworkInterfaces();
+                foreach (var nic in interfaces)
+                {
+                    if (nic.OperationalStatus != OperationalStatus.Up)
+                        continue;
+                    if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                        continue;
+
+                    var props = nic.GetIPProperties();
+                    foreach (var addr in props.UnicastAddresses)
+                    {
+                        if (addr.Address.AddressFamily != AddressFamily.InterNetwork)
+                            continue;
+
+                        byte[] bytes = addr.Address.GetAddressBytes();
+                        // Accept private ranges (10.x, 172.16-31.x, 192.168.x)
+                        // and link-local (169.254.x) which can still carry NDI
+                        if (bytes[0] == 10 ||
+                            (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+                            (bytes[0] == 192 && bytes[1] == 168) ||
+                            (bytes[0] == 169 && bytes[1] == 254))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // NetworkInterface APIs may not be available on all platforms.
+                // Fall through to let the caller use Unity's reachability as fallback.
+                Debug.LogWarning($"[Network] LAN interface check failed: {ex.Message}");
+            }
+            return false;
         }
 
         private void TryReconnect()

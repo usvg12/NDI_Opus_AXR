@@ -41,6 +41,47 @@ namespace NDIViewer
         [SerializeField] private Color errorColor = new Color(0.9f, 0.2f, 0.2f);
         [SerializeField] private Color testPatternColor = new Color(0.9f, 0.6f, 0.1f);
 
+        /// <summary>
+        /// Wire component references at runtime. Replaces reflection-based wiring
+        /// with an explicit API that is safe against field renames.
+        /// </summary>
+        public void SetReferences(
+            NDISourceDiscovery discovery, NDIReceiver recv,
+            NDIVideoDisplay display, SpatialWindowController window,
+            UIPanelBuilder builder)
+        {
+            sourceDiscovery = discovery;
+            receiver = recv;
+            videoDisplay = display;
+            windowController = window;
+
+            if (builder != null)
+            {
+                sourceDropdown = builder.SourceDropdown;
+                connectButton = builder.ConnectButton;
+                connectButtonText = builder.ConnectButtonText;
+                sbsToggle = builder.SBSToggle;
+                sbsToggleLabel = builder.SBSToggleLabel;
+                statusText = builder.StatusText;
+                resolutionText = builder.ResolutionText;
+                fpsText = builder.FpsText;
+                resetPositionButton = builder.ResetPositionButton;
+                connectionIndicator = builder.ConnectionIndicator;
+            }
+
+            ValidateReferences();
+        }
+
+        private void ValidateReferences()
+        {
+            if (sourceDiscovery == null) Debug.LogError("[UIController] sourceDiscovery is null after wiring.");
+            if (receiver == null) Debug.LogError("[UIController] receiver is null after wiring.");
+            if (videoDisplay == null) Debug.LogError("[UIController] videoDisplay is null after wiring.");
+            if (sourceDropdown == null) Debug.LogError("[UIController] sourceDropdown is null after wiring.");
+            if (connectButton == null) Debug.LogError("[UIController] connectButton is null after wiring.");
+            if (statusText == null) Debug.LogError("[UIController] statusText is null after wiring.");
+        }
+
         private List<NDISourceDiscovery.DiscoveredSource> _currentSources =
             new List<NDISourceDiscovery.DiscoveredSource>();
         private bool _isConnected;

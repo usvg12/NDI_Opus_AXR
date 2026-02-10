@@ -26,9 +26,21 @@ namespace NDIViewer
         [Tooltip("Enable passthrough (mixed reality) mode on start")]
         [SerializeField] private bool enablePassthrough = true;
 
-        [Header("Performance")]
-        [Tooltip("GPU performance level (0=low, 4=max)")]
-        [SerializeField] private int gpuPerformanceLevel = 3;
+        /// <summary>
+        /// Wire component references at runtime. Replaces reflection-based wiring
+        /// with an explicit API that is safe against field renames.
+        /// </summary>
+        public void SetReferences(
+            NDISourceDiscovery discovery, NDIReceiver recv,
+            NDIVideoDisplay display, SpatialWindowController window,
+            UIController ui)
+        {
+            sourceDiscovery = discovery;
+            receiver = recv;
+            videoDisplay = display;
+            windowController = window;
+            uiController = ui;
+        }
 
         private bool _initialized;
         private bool _shutdown;
