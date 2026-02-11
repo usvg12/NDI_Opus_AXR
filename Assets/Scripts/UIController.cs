@@ -292,13 +292,25 @@ namespace NDIViewer
             if (compositionLayerRenderer != null)
             {
                 compositionLayerRenderer.SetCompositionLayerEnabled(isOn);
-            }
 
-            if (compLayerToggleLabel != null)
+                // Sync toggle back to actual state (activation may have failed)
+                bool active = compositionLayerRenderer.IsCompositionLayerActive;
+                if (compLayerToggle != null && compLayerToggle.isOn != active)
+                {
+                    // Temporarily remove listener to avoid recursive call
+                    compLayerToggle.onValueChanged.RemoveListener(OnCompLayerToggleChanged);
+                    compLayerToggle.isOn = active;
+                    compLayerToggle.onValueChanged.AddListener(OnCompLayerToggleChanged);
+                }
+
+                if (compLayerToggleLabel != null)
+                {
+                    compLayerToggleLabel.text = active ? "Comp Layer: ON" : "Comp Layer: OFF";
+                }
+            }
+            else if (compLayerToggleLabel != null)
             {
-                bool active = compositionLayerRenderer != null &&
-                    compositionLayerRenderer.IsCompositionLayerActive;
-                compLayerToggleLabel.text = active ? "Comp Layer: ON" : "Comp Layer: OFF";
+                compLayerToggleLabel.text = "Comp Layer: OFF";
             }
         }
 

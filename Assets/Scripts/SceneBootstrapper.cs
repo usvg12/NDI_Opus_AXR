@@ -171,7 +171,7 @@ namespace NDIViewer
 
             // Optional: composition layer rendering for sharper video output
             var compositionLayerRenderer = videoWindowGO.AddComponent<CompositionLayerVideoRenderer>();
-            compositionLayerRenderer.SetReferences(receiver, videoDisplay, windowController);
+            compositionLayerRenderer.SetReferences(receiver, windowController);
 
             // ─── 6. UI Control Panel ──────────────────────────────────
             var uiBuilderGO = new GameObject("UI Builder");

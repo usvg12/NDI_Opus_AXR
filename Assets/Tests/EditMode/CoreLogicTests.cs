@@ -304,4 +304,56 @@ namespace NDIViewer.Tests
             Assert.IsFalse(CompositionLayerVideoRenderer.CanActivateCompositionLayer(false, true));
         }
     }
+
+    public class SBSDimensionTests
+    {
+        [Test]
+        public void ComputeSBSHalfWidth_Standard1920()
+        {
+            Assert.AreEqual(960, CompositionLayerVideoRenderer.ComputeSBSHalfWidth(1920));
+        }
+
+        [Test]
+        public void ComputeSBSHalfWidth_Standard3840()
+        {
+            Assert.AreEqual(1920, CompositionLayerVideoRenderer.ComputeSBSHalfWidth(3840));
+        }
+
+        [Test]
+        public void ComputeSBSHalfWidth_OddWidth()
+        {
+            // Integer division truncates: 1921 / 2 = 960
+            Assert.AreEqual(960, CompositionLayerVideoRenderer.ComputeSBSHalfWidth(1921));
+        }
+
+        [Test]
+        public void ComputeSBSHalfWidth_Zero()
+        {
+            Assert.AreEqual(0, CompositionLayerVideoRenderer.ComputeSBSHalfWidth(0));
+        }
+
+        [Test]
+        public void NeedReallocateEyeTextures_SameDimensionsReturnsFalse()
+        {
+            Assert.IsFalse(CompositionLayerVideoRenderer.NeedReallocateEyeTextures(960, 1080, 960, 1080));
+        }
+
+        [Test]
+        public void NeedReallocateEyeTextures_DifferentWidthReturnsTrue()
+        {
+            Assert.IsTrue(CompositionLayerVideoRenderer.NeedReallocateEyeTextures(960, 1080, 1920, 1080));
+        }
+
+        [Test]
+        public void NeedReallocateEyeTextures_DifferentHeightReturnsTrue()
+        {
+            Assert.IsTrue(CompositionLayerVideoRenderer.NeedReallocateEyeTextures(960, 1080, 960, 540));
+        }
+
+        [Test]
+        public void NeedReallocateEyeTextures_BothDifferentReturnsTrue()
+        {
+            Assert.IsTrue(CompositionLayerVideoRenderer.NeedReallocateEyeTextures(960, 1080, 1920, 540));
+        }
+    }
 }
