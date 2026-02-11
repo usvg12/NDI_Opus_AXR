@@ -248,4 +248,60 @@ namespace NDIViewer.Tests
             Assert.AreEqual(1.0f, scale, 0.001f);
         }
     }
+
+    public class CompositionLayerModeTests
+    {
+        [Test]
+        public void GetRenderModeString_ActiveReturnsCompositionLayer()
+        {
+            string result = CompositionLayerVideoRenderer.GetRenderModeString(true, true);
+            Assert.AreEqual("Composition Layer", result);
+        }
+
+        [Test]
+        public void GetRenderModeString_InactiveSupportedShowsAvailable()
+        {
+            string result = CompositionLayerVideoRenderer.GetRenderModeString(false, true);
+            Assert.AreEqual("Quad (comp layer available)", result);
+        }
+
+        [Test]
+        public void GetRenderModeString_UnsupportedReturnsQuad()
+        {
+            string result = CompositionLayerVideoRenderer.GetRenderModeString(false, false);
+            Assert.AreEqual("Quad", result);
+        }
+
+        [Test]
+        public void GetRenderModeString_ActiveOverridesSupported()
+        {
+            // If active is true, result is always "Composition Layer" regardless of supported
+            string result = CompositionLayerVideoRenderer.GetRenderModeString(true, false);
+            Assert.AreEqual("Composition Layer", result);
+        }
+
+        [Test]
+        public void CanActivateCompositionLayer_SupportedAndInactiveReturnsTrue()
+        {
+            Assert.IsTrue(CompositionLayerVideoRenderer.CanActivateCompositionLayer(true, false));
+        }
+
+        [Test]
+        public void CanActivateCompositionLayer_NotSupportedReturnsFalse()
+        {
+            Assert.IsFalse(CompositionLayerVideoRenderer.CanActivateCompositionLayer(false, false));
+        }
+
+        [Test]
+        public void CanActivateCompositionLayer_AlreadyActiveReturnsFalse()
+        {
+            Assert.IsFalse(CompositionLayerVideoRenderer.CanActivateCompositionLayer(true, true));
+        }
+
+        [Test]
+        public void CanActivateCompositionLayer_NotSupportedAndActiveReturnsFalse()
+        {
+            Assert.IsFalse(CompositionLayerVideoRenderer.CanActivateCompositionLayer(false, true));
+        }
+    }
 }

@@ -7,6 +7,7 @@
         "Unity.XR.Management",
         "Unity.InputSystem",
         "Unity.XR.OpenXR",
+        "Unity.XR.CompositionLayers",
         "Unity.XR.Hands",
         "Unity.XR.ARFoundation"
     ],
@@ -17,6 +18,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.compositionlayers",
+            "expression": "1.0.0",
+            "define": "XR_COMPOSITION_LAYERS_AVAILABLE"
+        }
+    ],
     "noEngineReferences": false
 }

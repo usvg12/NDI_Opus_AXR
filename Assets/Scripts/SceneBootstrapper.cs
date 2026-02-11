@@ -170,7 +170,8 @@ namespace NDIViewer
             var windowController = videoWindowGO.AddComponent<SpatialWindowController>();
 
             // Optional: composition layer rendering for sharper video output
-            videoWindowGO.AddComponent<CompositionLayerVideoRenderer>();
+            var compositionLayerRenderer = videoWindowGO.AddComponent<CompositionLayerVideoRenderer>();
+            compositionLayerRenderer.SetReferences(receiver, videoDisplay, windowController);
 
             // ─── 6. UI Control Panel ──────────────────────────────────
             var uiBuilderGO = new GameObject("UI Builder");
@@ -181,7 +182,7 @@ namespace NDIViewer
             var uiControllerGO = new GameObject("UI Controller");
             var uiController = uiControllerGO.AddComponent<UIController>();
             uiController.SetReferences(sourceDiscovery, receiver, videoDisplay,
-                windowController, uiBuilder);
+                windowController, uiBuilder, compositionLayerRenderer);
 
             // ─── 7. App Controller ────────────────────────────────────
             var appControllerGO = new GameObject("App Controller");
@@ -192,7 +193,7 @@ namespace NDIViewer
             // ─── 8. Diagnostics Overlay ───────────────────────────────
             var diagGO = new GameObject("Diagnostics");
             var diagnostics = diagGO.AddComponent<DiagnosticsOverlay>();
-            diagnostics.SetReferences(receiver, performanceMonitor);
+            diagnostics.SetReferences(receiver, performanceMonitor, compositionLayerRenderer);
             diagnostics.Initialize();
 
             // ─── 9. Initial state ─────────────────────────────────────

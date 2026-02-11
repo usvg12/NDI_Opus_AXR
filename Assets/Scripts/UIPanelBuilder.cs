@@ -43,6 +43,8 @@ namespace NDIViewer
         [HideInInspector] public TMP_Text FpsText;
         [HideInInspector] public Button ResetPositionButton;
         [HideInInspector] public Image ConnectionIndicator;
+        [HideInInspector] public Toggle CompLayerToggle;
+        [HideInInspector] public TMP_Text CompLayerToggleLabel;
         [HideInInspector] public Canvas PanelCanvas;
 
         private const int FONT_SIZE_TITLE = 24;
@@ -169,6 +171,17 @@ namespace NDIViewer
 
             SBSToggleLabel = CreateText(sbsRow, "SBSLabel", "SBS 3D: OFF", FONT_SIZE_LABEL, labelColor);
             SBSToggleLabel.alignment = TextAlignmentOptions.Left;
+
+            // ─── Composition Layer Toggle Row ─────────────────────────
+            var compRow = CreateRow(layoutGO, "CompLayerRow", 40);
+
+            CompLayerToggle = CreateToggle(compRow, "CompLayerToggle");
+            var compToggleLE = CompLayerToggle.gameObject.AddComponent<LayoutElement>();
+            compToggleLE.preferredWidth = 60;
+            compToggleLE.flexibleWidth = 0;
+
+            CompLayerToggleLabel = CreateText(compRow, "CompLayerLabel", "Comp Layer: OFF", FONT_SIZE_LABEL, labelColor);
+            CompLayerToggleLabel.alignment = TextAlignmentOptions.Left;
 
             // ─── Status Row ───────────────────────────────────────────
             var statusRow = CreateRow(layoutGO, "StatusRow", 30);
