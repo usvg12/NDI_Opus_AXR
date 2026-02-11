@@ -1,7 +1,9 @@
 {
   "name": "NDIViewer.Tests.Editor",
   "rootNamespace": "NDIViewer.Tests",
-  "references": [],
+  "references": [
+    "NDIViewer.Runtime"
+  ],
   "includePlatforms": [
     "Editor"
   ],
