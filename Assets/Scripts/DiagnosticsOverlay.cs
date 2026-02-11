@@ -43,7 +43,8 @@ namespace NDIViewer
         private StreamWriter _logWriter;
         private float _logTimer;
         private const float LOG_INTERVAL = 5.0f;
-        private static readonly string LogDir = Path.Combine(Application.persistentDataPath, "logs");
+        private static string _logDir;
+        private static string LogDir => _logDir ??= Path.Combine(Application.persistentDataPath, "logs");
 
         public bool IsVisible => _visible;
 
