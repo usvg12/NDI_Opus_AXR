@@ -180,8 +180,18 @@ namespace NDIViewer
                 sourceDiscovery.StopDiscovery();
             }
 
-            // Shutdown NDI library
-            NDIInterop.Destroy();
+            // Shutdown NDI library (skip if native lib was never loaded)
+            if (sourceDiscovery == null || !sourceDiscovery.IsNDIUnavailable)
+            {
+                try
+                {
+                    NDIInterop.Destroy();
+                }
+                catch (DllNotFoundException)
+                {
+                    // libndi.so was never present — nothing to tear down.
+                }
+            }
 
             Debug.Log("[App] Shutdown complete.");
         }
