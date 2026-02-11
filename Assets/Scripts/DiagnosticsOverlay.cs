@@ -17,6 +17,7 @@ namespace NDIViewer
     {
         private NDIReceiver _receiver;
         private PerformanceMonitor _perfMonitor;
+        private CompositionLayerVideoRenderer _compLayerRenderer;
         private TMP_Text _statsText;
         private Canvas _canvas;
         private GameObject _overlayRoot;
@@ -46,10 +47,12 @@ namespace NDIViewer
 
         public bool IsVisible => _visible;
 
-        public void SetReferences(NDIReceiver receiver, PerformanceMonitor perfMonitor)
+        public void SetReferences(NDIReceiver receiver, PerformanceMonitor perfMonitor,
+            CompositionLayerVideoRenderer compLayerRenderer = null)
         {
             _receiver = receiver;
             _perfMonitor = perfMonitor;
+            _compLayerRenderer = compLayerRenderer;
         }
 
         public void Initialize()
@@ -144,6 +147,13 @@ namespace NDIViewer
             var info = _receiver.LastFrameInfo;
             float dropRate = _lastTotal > 0 ? (float)_lastDropped / _lastTotal * 100f : 0f;
 
+            // Composition layer status
+            string renderMode = _compLayerRenderer != null
+                ? CompositionLayerVideoRenderer.GetRenderModeString(
+                    _compLayerRenderer.IsCompositionLayerActive,
+                    _compLayerRenderer.IsCompositionLayerSupported)
+                : "Quad";
+
             // Build display string with reusable StringBuilder (zero per-update alloc)
             _sb.Clear();
             _sb.Append("NDI Diagnostics\nRecv FPS: ").Append(_lastRecvFps.ToString("F1"))
@@ -156,7 +166,8 @@ namespace NDIViewer
                .Append("\nStride fixups: ").Append(_lastStrideFixups)
                .Append("  Format warns: ").Append(_lastFormatMismatches)
                .Append("\nRes scale: ").Append((_lastResScale * 100f).ToString("F0")).Append('%')
-               .Append("  State: ").Append(_receiver.State);
+               .Append("  State: ").Append(_receiver.State)
+               .Append("\nRender mode: ").Append(renderMode);
             _statsText.SetText(_sb);
 
             // Persistent session log + console log every LOG_INTERVAL seconds

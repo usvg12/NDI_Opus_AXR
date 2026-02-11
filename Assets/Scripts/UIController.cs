@@ -21,6 +21,7 @@ namespace NDIViewer
         [SerializeField] private NDIReceiver receiver;
         [SerializeField] private NDIVideoDisplay videoDisplay;
         [SerializeField] private SpatialWindowController windowController;
+        [SerializeField] private CompositionLayerVideoRenderer compositionLayerRenderer;
 
         [Header("UI Elements")]
         [SerializeField] private TMP_Dropdown sourceDropdown;
@@ -33,6 +34,8 @@ namespace NDIViewer
         [SerializeField] private TMP_Text fpsText;
         [SerializeField] private Button resetPositionButton;
         [SerializeField] private Image connectionIndicator;
+        [SerializeField] private Toggle compLayerToggle;
+        [SerializeField] private TMP_Text compLayerToggleLabel;
 
         [Header("Status Colors")]
         [SerializeField] private Color connectedColor = new Color(0.2f, 0.8f, 0.2f);
@@ -48,12 +51,14 @@ namespace NDIViewer
         public void SetReferences(
             NDISourceDiscovery discovery, NDIReceiver recv,
             NDIVideoDisplay display, SpatialWindowController window,
-            UIPanelBuilder builder)
+            UIPanelBuilder builder,
+            CompositionLayerVideoRenderer compLayerRenderer = null)
         {
             sourceDiscovery = discovery;
             receiver = recv;
             videoDisplay = display;
             windowController = window;
+            compositionLayerRenderer = compLayerRenderer;
 
             if (builder != null)
             {
@@ -67,6 +72,8 @@ namespace NDIViewer
                 fpsText = builder.FpsText;
                 resetPositionButton = builder.ResetPositionButton;
                 connectionIndicator = builder.ConnectionIndicator;
+                compLayerToggle = builder.CompLayerToggle;
+                compLayerToggleLabel = builder.CompLayerToggleLabel;
             }
 
             ValidateReferences();
@@ -84,6 +91,8 @@ namespace NDIViewer
                 sbsToggle.onValueChanged.AddListener(OnSBSToggleChanged);
             if (resetPositionButton != null)
                 resetPositionButton.onClick.AddListener(OnResetPositionClicked);
+            if (compLayerToggle != null)
+                compLayerToggle.onValueChanged.AddListener(OnCompLayerToggleChanged);
 
             // Subscribe to component events and refresh display
             if (isActiveAndEnabled)
@@ -266,9 +275,30 @@ namespace NDIViewer
                 videoDisplay.SetSBSMode(isOn);
             }
 
+            // Forward SBS state to composition layer renderer
+            if (compositionLayerRenderer != null)
+            {
+                compositionLayerRenderer.SetSBSMode(isOn);
+            }
+
             if (sbsToggleLabel != null)
             {
                 sbsToggleLabel.text = isOn ? "SBS 3D: ON" : "SBS 3D: OFF";
+            }
+        }
+
+        private void OnCompLayerToggleChanged(bool isOn)
+        {
+            if (compositionLayerRenderer != null)
+            {
+                compositionLayerRenderer.SetCompositionLayerEnabled(isOn);
+            }
+
+            if (compLayerToggleLabel != null)
+            {
+                bool active = compositionLayerRenderer != null &&
+                    compositionLayerRenderer.IsCompositionLayerActive;
+                compLayerToggleLabel.text = active ? "Comp Layer: ON" : "Comp Layer: OFF";
             }
         }
 
@@ -408,6 +438,19 @@ namespace NDIViewer
             {
                 bool isOn = sbsToggle != null && sbsToggle.isOn;
                 sbsToggleLabel.text = isOn ? "SBS 3D: ON" : "SBS 3D: OFF";
+            }
+
+            if (compLayerToggleLabel != null)
+            {
+                bool active = compositionLayerRenderer != null &&
+                    compositionLayerRenderer.IsCompositionLayerActive;
+                compLayerToggleLabel.text = active ? "Comp Layer: ON" : "Comp Layer: OFF";
+            }
+
+            // Disable the comp layer toggle if not supported
+            if (compLayerToggle != null && compositionLayerRenderer != null)
+            {
+                compLayerToggle.interactable = compositionLayerRenderer.IsCompositionLayerSupported;
             }
 
             UpdateStatusDisplay(receiver?.State ?? NDIReceiver.ConnectionState.Disconnected);

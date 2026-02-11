@@ -119,7 +119,12 @@ namespace NDIViewer
             _currentResolutionScale = Mathf.Max(_currentResolutionScale - 0.1f, minResolutionScale);
             _qualityReduced = true;
 
-            // Apply resolution scale via XR rendering
+            // Apply resolution scale via XR rendering.
+            // NOTE: This only affects the standard eye texture used by the URP rasterization
+            // pipeline. When CompositionLayerVideoRenderer is active, the video texture is
+            // submitted directly to the XR compositor and is NOT affected by this scale.
+            // Composition layers bypass the eye texture entirely, rendering at native display
+            // resolution regardless of this setting.
             UnityEngine.XR.XRSettings.eyeTextureResolutionScale = _currentResolutionScale;
 
             Debug.Log($"[Performance] Reduced resolution scale to {_currentResolutionScale:F1} " +
