@@ -124,11 +124,16 @@ namespace NDIViewer
                     name = System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi(receiverName)
                 };
 
-                _recvInstance = NDIInterop.RecvCreate(ref recvSettings);
-
-                // Free the marshalled string
-                if (recvSettings.name != IntPtr.Zero)
-                    System.Runtime.InteropServices.Marshal.FreeHGlobal(recvSettings.name);
+                try
+                {
+                    _recvInstance = NDIInterop.RecvCreate(ref recvSettings);
+                }
+                finally
+                {
+                    // Free the marshalled string even if RecvCreate throws
+                    if (recvSettings.name != IntPtr.Zero)
+                        System.Runtime.InteropServices.Marshal.FreeHGlobal(recvSettings.name);
+                }
 
                 if (_recvInstance == IntPtr.Zero)
                 {
