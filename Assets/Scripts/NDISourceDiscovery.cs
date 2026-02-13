@@ -139,7 +139,14 @@ namespace NDIViewer
 
             if (_findInstance != IntPtr.Zero)
             {
-                NDIInterop.FindDestroy(_findInstance);
+                try
+                {
+                    NDIInterop.FindDestroy(_findInstance);
+                }
+                catch (DllNotFoundException)
+                {
+                    // libndi.so was removed/unloaded — nothing to tear down.
+                }
                 _findInstance = IntPtr.Zero;
             }
 

@@ -180,7 +180,14 @@ namespace NDIViewer
 
             if (_recvInstance != IntPtr.Zero)
             {
-                NDIInterop.RecvDestroy(_recvInstance);
+                try
+                {
+                    NDIInterop.RecvDestroy(_recvInstance);
+                }
+                catch (DllNotFoundException)
+                {
+                    // libndi.so was removed/unloaded — nothing to tear down.
+                }
                 _recvInstance = IntPtr.Zero;
             }
 
